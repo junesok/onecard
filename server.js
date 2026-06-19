@@ -26,7 +26,6 @@ function penaltyOf(card) {
 }
 
 function isPenaltyCard(card) { return penaltyOf(card) > 0; }
-
 function suitIsBlack(suit) { return suit === 'spades' || suit === 'clubs'; }
 
 // ─── Deck ─────────────────────────────────────────────────────────────────────
@@ -49,8 +48,8 @@ function shuffle(arr) {
   return a;
 }
 
-// ─── State ────────────────────────────────────────────────────────────────────
-function makeState() {
+// ─── Game State ───────────────────────────────────────────────────────────────
+function makeGameState() {
   return {
     phase: 'lobby',
     players: {},
@@ -68,95 +67,124 @@ function makeState() {
     waitingSuitChange: false,
     hasPlayedThisTurn: false,
     pendingSkips: 0,
-    rematchVotes: new Set(),
-    rankings: [],      // [{id, name, rank}] — 완주 순서
-    finished: new Set(), // 완주한 플레이어 id
-    oneCardChallenge: null, // { playerId, playerName, requiredKey }
+    rankings: [],
+    finished: new Set(),
+    oneCardChallenge: null,
   };
 }
 
-let state = makeState();
+// ─── Room Registry ────────────────────────────────────────────────────────────
+const rooms = new Map();      // roomId → { id, name, password, game, rematchVotes }
+const socketRoom = new Map(); // socketId → roomId
+const socketName = new Map(); // socketId → name
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function currentPlayerId() {
-  return state.playerOrder[state.currentIndex];
+function generateRoomId() {
+  let id;
+  do { id = Math.random().toString(36).substr(2, 6).toUpperCase(); }
+  while (rooms.has(id));
+  return id;
 }
 
-function drawFromDeck(n) {
+function getRoomList() {
+  const list = [];
+  rooms.forEach(room => {
+    if (room.game.phase === 'playing') return;
+    list.push({
+      id: room.id,
+      name: room.name,
+      hasPassword: !!room.password,
+      playerCount: Object.keys(room.game.players).length,
+      maxPlayers: MAX_PLAYERS,
+      phase: room.game.phase,
+    });
+  });
+  return list;
+}
+
+function broadcastRoomList() {
+  io.emit('room_list', { rooms: getRoomList() });
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function currentPlayerId(game) {
+  return game.playerOrder[game.currentIndex];
+}
+
+function drawFromDeck(game, n) {
   const drawn = [];
   for (let i = 0; i < n; i++) {
-    if (state.deck.length === 0) reshuffleDeck();
-    if (state.deck.length === 0) break;
-    drawn.push(state.deck.pop());
+    if (game.deck.length === 0) reshuffleDeck(game);
+    if (game.deck.length === 0) break;
+    drawn.push(game.deck.pop());
   }
   return drawn;
 }
 
-function reshuffleDeck() {
-  if (state.discardPile.length <= 1) return;
-  const toShuffle = state.discardPile.slice(0, -1);
-  state.deck = shuffle(toShuffle);
-  state.discardPile = state.discardPile.slice(-1);
+function reshuffleDeck(game) {
+  if (game.discardPile.length <= 1) return;
+  const toShuffle = game.discardPile.slice(0, -1);
+  game.deck = shuffle(toShuffle);
+  game.discardPile = game.discardPile.slice(-1);
 }
 
-function advanceTurn(extraSkips = 0) {
-  const n = state.playerOrder.length;
+function advanceTurn(game, extraSkips = 0) {
+  const n = game.playerOrder.length;
   const steps = 1 + extraSkips;
-  const fromName = state.players[state.playerOrder[state.currentIndex]]?.name || '?';
-  let idx = state.currentIndex;
+  const fromName = game.players[game.playerOrder[game.currentIndex]]?.name || '?';
+  let idx = game.currentIndex;
   let moved = 0;
   while (moved < steps) {
-    idx = ((idx + state.direction) % n + n) % n;
-    if (!state.finished.has(state.playerOrder[idx])) moved++;
+    idx = ((idx + game.direction) % n + n) % n;
+    if (!game.finished.has(game.playerOrder[idx])) moved++;
   }
-  state.currentIndex = idx;
-  state.hasPlayedThisTurn = false;
-  state.pendingSkips = 0;
-  const toName = state.players[state.playerOrder[state.currentIndex]]?.name || '?';
-  console.log(`[TURN] ${fromName} → ${toName}  (dir:${state.direction} steps:${steps} order:[${state.playerOrder.map(id=>(state.finished.has(id)?'X':'')+state.players[id]?.name).join(',')}])`);
+  game.currentIndex = idx;
+  game.hasPlayedThisTurn = false;
+  game.pendingSkips = 0;
+  const toName = game.players[game.playerOrder[game.currentIndex]]?.name || '?';
+  console.log(`[TURN] ${fromName} → ${toName}  (dir:${game.direction} steps:${steps})`);
 }
 
-function buildLobbyState() {
+function buildLobbyState(game) {
   return {
-    players: Object.values(state.players).map(p => ({
+    players: Object.values(game.players).map(p => ({
       id: p.id, name: p.name, isHost: p.isHost,
     })),
   };
 }
 
-function buildPublicPlayerInfo() {
-  return state.playerOrder.map(id => {
-    const p = state.players[id];
-    return { id, name: p.name, cardCount: p.hand.length, oneCardDeclared: p.oneCardDeclared, isFinished: state.finished.has(id) };
+function buildPublicPlayerInfo(game) {
+  return game.playerOrder.map(id => {
+    const p = game.players[id];
+    return { id, name: p.name, cardCount: p.hand.length, oneCardDeclared: p.oneCardDeclared, isFinished: game.finished.has(id) };
   });
 }
 
-function broadcastGameState() {
+function broadcastGameState(game, roomId) {
   const base = {
-    fieldCard: state.fieldCard,
-    currentPlayerId: currentPlayerId(),
-    direction: state.direction,
-    penaltyStack: state.penaltyStack,
-    penaltyActive: state.penaltyActive,
-    extraTurnActive: state.extraTurnActive,
-    extraTurnSuit: state.extraTurnSuit,
-    sevenSuit: state.sevenSuit,
-    waitingSuitChange: state.waitingSuitChange,
-    hasPlayedThisTurn: state.hasPlayedThisTurn,
-    playerInfo: buildPublicPlayerInfo(),
-    deckCount: state.deck.length,
-    rankings: state.rankings,
-    oneCardChallenge: state.oneCardChallenge
-      ? { playerName: state.oneCardChallenge.playerName, requiredKey: state.oneCardChallenge.requiredKey }
+    fieldCard: game.fieldCard,
+    currentPlayerId: currentPlayerId(game),
+    direction: game.direction,
+    penaltyStack: game.penaltyStack,
+    penaltyActive: game.penaltyActive,
+    extraTurnActive: game.extraTurnActive,
+    extraTurnSuit: game.extraTurnSuit,
+    sevenSuit: game.sevenSuit,
+    waitingSuitChange: game.waitingSuitChange,
+    hasPlayedThisTurn: game.hasPlayedThisTurn,
+    playerInfo: buildPublicPlayerInfo(game),
+    deckCount: game.deck.length,
+    rankings: game.rankings,
+    oneCardChallenge: game.oneCardChallenge
+      ? { playerName: game.oneCardChallenge.playerName, requiredKey: game.oneCardChallenge.requiredKey }
       : null,
   };
   const allHands = {};
-  state.playerOrder.forEach(id => { allHands[id] = state.players[id].hand; });
+  game.playerOrder.forEach(id => { allHands[id] = game.players[id].hand; });
 
-  Object.values(state.players).forEach(p => {
+  Object.values(game.players).forEach(p => {
     const sock = io.sockets.sockets.get(p.id);
     if (!sock) return;
-    if (state.finished.has(p.id)) {
+    if (game.finished.has(p.id)) {
       sock.emit('game_update', { ...base, myHand: p.hand, allHands, isSpectator: true });
     } else {
       sock.emit('game_update', { ...base, myHand: p.hand });
@@ -202,23 +230,20 @@ function canPlayNormal(card, fieldCard, extraTurnActive, extraTurnSuit, sevenSui
   if (sevenSuit) {
     return card.suit === sevenSuit || card.rank === '7';
   }
-  // BW joker field: black suits (♠♣) or BW joker
   if (fieldCard.rank === 'BW') {
     return card.rank === 'BW' || (card.suit !== null && suitIsBlack(card.suit));
   }
-  // COLOR joker field: red suits (♥♦) or COLOR joker
   if (fieldCard.rank === 'COLOR') {
     return card.rank === 'COLOR' || (card.suit !== null && !suitIsBlack(card.suit));
   }
-  // Joker play conditions (on normal field)
   if (card.rank === 'BW') return suitIsBlack(fieldCard.suit);
   if (card.rank === 'COLOR') return !suitIsBlack(fieldCard.suit);
   return card.suit === fieldCard.suit || card.rank === fieldCard.rank;
 }
 
-function validatePlay(cards) {
+function validatePlay(game, cards) {
   if (cards.length === 0) return { valid: false, reason: '카드를 선택하세요.' };
-  const player = state.players[currentPlayerId()];
+  const player = game.players[currentPlayerId(game)];
   const handIds = new Set(player.hand.map(c => c.id));
   if (!cards.every(c => handIds.has(c.id))) return { valid: false, reason: '손패에 없는 카드입니다.' };
   if (cards.length > 1) {
@@ -227,115 +252,113 @@ function validatePlay(cards) {
     if (cards[0].rank === 'BW' || cards[0].rank === 'COLOR')
       return { valid: false, reason: '조커는 1장만 낼 수 있습니다.' };
   }
-  if (state.penaltyActive && state.penaltyStack > 0) {
-    if (!cards.every(c => canDefend(c, state.fieldCard)))
+  if (game.penaltyActive && game.penaltyStack > 0) {
+    if (!cards.every(c => canDefend(c, game.fieldCard)))
       return { valid: false, reason: '방어할 수 없는 카드입니다.' };
     return { valid: true };
   }
-  if (!canPlayNormal(cards[0], state.fieldCard, state.extraTurnActive, state.extraTurnSuit, state.sevenSuit))
+  if (!canPlayNormal(cards[0], game.fieldCard, game.extraTurnActive, game.extraTurnSuit, game.sevenSuit))
     return { valid: false, reason: '낼 수 없는 카드입니다.' };
   return { valid: true };
 }
 
 // ─── Game Start ───────────────────────────────────────────────────────────────
-function startGame() {
-  state.phase = 'playing';
-  state.playerOrder = shuffle(Object.keys(state.players));
+function startGame(game, roomId) {
+  game.phase = 'playing';
+  game.playerOrder = shuffle(Object.keys(game.players));
 
   let deck = shuffle(createDeck());
-
-  state.playerOrder.forEach(id => {
-    state.players[id].hand = deck.splice(0, INITIAL_HAND);
-    state.players[id].oneCardDeclared = false;
+  game.playerOrder.forEach(id => {
+    game.players[id].hand = deck.splice(0, INITIAL_HAND);
+    game.players[id].oneCardDeclared = false;
   });
 
-  // Prefer a normal number card as the starting field card
   let fi = deck.findIndex(c => NORMAL_RANKS.includes(c.rank));
   if (fi === -1) fi = deck.findIndex(c => c.rank !== 'BW' && c.rank !== 'COLOR');
   if (fi === -1) fi = 0;
-  state.fieldCard = deck.splice(fi, 1)[0];
-  state.discardPile = [state.fieldCard];
-  state.deck = deck;
+  game.fieldCard = deck.splice(fi, 1)[0];
+  game.discardPile = [game.fieldCard];
+  game.deck = deck;
 
-  state.currentIndex = 0;
-  state.direction = 1;
-  state.penaltyStack = 0;
-  state.penaltyActive = false;
-  state.extraTurnActive = false;
-  state.extraTurnSuit = null;
-  state.sevenSuit = null;
-  state.waitingSuitChange = false;
-  state.hasPlayedThisTurn = false;
-  state.pendingSkips = 0;
-  state.rankings = [];
-  state.finished = new Set();
-  state.oneCardChallenge = null;
+  game.currentIndex = 0;
+  game.direction = 1;
+  game.penaltyStack = 0;
+  game.penaltyActive = false;
+  game.extraTurnActive = false;
+  game.extraTurnSuit = null;
+  game.sevenSuit = null;
+  game.waitingSuitChange = false;
+  game.hasPlayedThisTurn = false;
+  game.pendingSkips = 0;
+  game.rankings = [];
+  game.finished = new Set();
+  game.oneCardChallenge = null;
 
-  io.emit('game_started');
-  broadcastGameState();
+  broadcastRoomList();
+  io.to(roomId).emit('game_started');
+  broadcastGameState(game, roomId);
 }
 
 // ─── Card Effects ─────────────────────────────────────────────────────────────
-function processCards(cards) {
-  const player = state.players[currentPlayerId()];
+function processCards(game, roomId, cards) {
+  const player = game.players[currentPlayerId(game)];
   const cardIds = new Set(cards.map(c => c.id));
   player.hand = player.hand.filter(c => !cardIds.has(c.id));
 
   const lastCard = cards[cards.length - 1];
-  state.discardPile.push(...cards);
-  state.fieldCard = lastCard;
-  state.hasPlayedThisTurn = true;
+  game.discardPile.push(...cards);
+  game.fieldCard = lastCard;
+  game.hasPlayedThisTurn = true;
 
-  if (state.penaltyActive) {
-    state.penaltyStack += cards.reduce((s, c) => s + penaltyOf(c), 0);
-    state.extraTurnActive = false;
-    state.extraTurnSuit = null;
-    updateOneCardState(player);
+  if (game.penaltyActive) {
+    game.penaltyStack += cards.reduce((s, c) => s + penaltyOf(c), 0);
+    game.extraTurnActive = false;
+    game.extraTurnSuit = null;
+    updateOneCardState(game, roomId, player);
     return;
   }
 
   const rank = cards[0].rank;
   const count = cards.length;
 
-  if (state.sevenSuit) state.sevenSuit = null;
+  if (game.sevenSuit) game.sevenSuit = null;
 
   switch (rank) {
     case '7':
-      state.waitingSuitChange = true;
+      game.waitingSuitChange = true;
       break;
     case 'J':
-      state.pendingSkips += count;
+      game.pendingSkips += count;
       break;
     case 'Q':
-      if (count % 2 === 1) state.direction *= -1;
+      if (count % 2 === 1) game.direction *= -1;
       break;
     case 'K':
-      state.extraTurnActive = true;
-      state.extraTurnSuit = lastCard.suit;
+      game.extraTurnActive = true;
+      game.extraTurnSuit = lastCard.suit;
       break;
     default:
       if (isPenaltyCard(cards[0])) {
-        state.penaltyStack += cards.reduce((s, c) => s + penaltyOf(c), 0);
-        state.penaltyActive = true;
+        game.penaltyStack += cards.reduce((s, c) => s + penaltyOf(c), 0);
+        game.penaltyActive = true;
       }
   }
 
-  // Consuming K extra turn with a non-K card (including penalty/attack cards)
-  if (rank !== 'K' && state.extraTurnActive) {
-    state.extraTurnActive = false;
-    state.extraTurnSuit = null;
+  if (rank !== 'K' && game.extraTurnActive) {
+    game.extraTurnActive = false;
+    game.extraTurnSuit = null;
   }
 
-  updateOneCardState(player);
+  updateOneCardState(game, roomId, player);
 }
 
-function updateOneCardState(player) {
+function updateOneCardState(game, roomId, player) {
   if (player.hand.length === 1 && !player.oneCardDeclared) {
-    if (!state.oneCardChallenge || state.oneCardChallenge.playerId !== player.id) {
+    if (!game.oneCardChallenge || game.oneCardChallenge.playerId !== player.id) {
       const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
       const key = chars[Math.floor(Math.random() * chars.length)];
-      state.oneCardChallenge = { playerId: player.id, playerName: player.name, requiredKey: key };
-      io.emit('one_card_challenge', { playerName: player.name, requiredKey: key });
+      game.oneCardChallenge = { playerId: player.id, playerName: player.name, requiredKey: key };
+      io.to(roomId).emit('one_card_challenge', { playerName: player.name, requiredKey: key });
     }
   }
   if (player.hand.length !== 1) {
@@ -344,244 +367,351 @@ function updateOneCardState(player) {
 }
 
 // ─── Finish Check ─────────────────────────────────────────────────────────────
-function checkFinish() {
-  const playerId = currentPlayerId();
-  const player = state.players[playerId];
+function checkFinish(game, roomId) {
+  const playerId = currentPlayerId(game);
+  const player = game.players[playerId];
   if (!player || player.hand.length !== 0) return;
-  if (state.waitingSuitChange) return;
+  if (game.waitingSuitChange) return;
 
-  state.finished.add(playerId);
-  state.extraTurnActive = false;
-  state.extraTurnSuit = null;
-  if (state.oneCardChallenge?.playerId === playerId) state.oneCardChallenge = null;
-  state.rankings.push({ id: playerId, name: player.name, rank: state.rankings.length + 1 });
-  const rankNum = state.rankings.length;
-  io.emit('chat_msg', { name: null, msg: `${rankNum}위: ${player.name} 완주!`, sys: true });
+  game.finished.add(playerId);
+  game.extraTurnActive = false;
+  game.extraTurnSuit = null;
+  if (game.oneCardChallenge?.playerId === playerId) game.oneCardChallenge = null;
+  game.rankings.push({ id: playerId, name: player.name, rank: game.rankings.length + 1 });
+  const rankNum = game.rankings.length;
+  io.to(roomId).emit('chat_msg', { name: null, msg: `${rankNum}위: ${player.name} 완주!`, sys: true });
 
-  const activePlayers = state.playerOrder.filter(id => !state.finished.has(id));
+  const activePlayers = game.playerOrder.filter(id => !game.finished.has(id));
   if (activePlayers.length <= 1) {
-    state.phase = 'ended';
-    const finalRankings = [...state.rankings];
+    game.phase = 'ended';
+    const finalRankings = [...game.rankings];
     activePlayers.forEach(id => {
-      finalRankings.push({ id, name: state.players[id].name, rank: finalRankings.length + 1 });
+      finalRankings.push({ id, name: game.players[id].name, rank: finalRankings.length + 1 });
     });
     const winner = finalRankings[0];
-    io.emit('game_over', {
+    io.to(roomId).emit('game_over', {
       winnerId: winner.id,
       winnerName: winner.name,
       rankings: finalRankings,
-      results: state.playerOrder.map(id => {
-        const pl = state.players[id];
+      results: game.playerOrder.map(id => {
+        const pl = game.players[id];
         const r = finalRankings.find(fr => fr.id === id);
-        return { id, name: pl.name, cardCount: pl.hand.length, rank: r?.rank || state.playerOrder.length, won: id === winner.id };
+        return { id, name: pl.name, cardCount: pl.hand.length, rank: r?.rank || game.playerOrder.length, won: id === winner.id };
       }),
     });
+    broadcastRoomList();
   }
+}
+
+// ─── Leave Room ───────────────────────────────────────────────────────────────
+function handleLeaveRoom(socket) {
+  const roomId = socketRoom.get(socket.id);
+  if (!roomId) return;
+  const room = rooms.get(roomId);
+  if (!room) { socketRoom.delete(socket.id); return; }
+
+  const game = room.game;
+  const p = game.players[socket.id];
+  const pName = p?.name;
+
+  socket.leave(roomId);
+  socketRoom.delete(socket.id);
+  delete game.players[socket.id];
+  room.rematchVotes.delete(socket.id);
+
+  if (game.finished.has(socket.id)) {
+    game.finished.delete(socket.id);
+    game.rankings = game.rankings.filter(r => r.id !== socket.id);
+    game.rankings.forEach((r, i) => { r.rank = i + 1; });
+  }
+
+  socket.emit('left_room');
+
+  if (Object.keys(game.players).length === 0) {
+    rooms.delete(roomId);
+    broadcastRoomList();
+    return;
+  }
+
+  if (game.phase === 'lobby' || game.phase === 'ended') {
+    const ids = Object.keys(game.players);
+    if (!Object.values(game.players).some(pl => pl.isHost))
+      game.players[ids[0]].isHost = true;
+    io.to(roomId).emit('lobby_update', buildLobbyState(game));
+    broadcastRoomList();
+    return;
+  }
+
+  // playing phase
+  const wasCurrentPlayer = socket.id === currentPlayerId(game);
+  game.playerOrder = game.playerOrder.filter(id => id !== socket.id);
+
+  if (game.playerOrder.length === 0) { rooms.delete(roomId); broadcastRoomList(); return; }
+  if (game.currentIndex >= game.playerOrder.length) game.currentIndex = 0;
+
+  if (pName) io.to(roomId).emit('chat_msg', { name: null, msg: `${pName} 님이 나갔습니다.`, sys: true });
+
+  const activePlayers = game.playerOrder.filter(id => !game.finished.has(id));
+  if (activePlayers.length <= 1) {
+    game.phase = 'ended';
+    const finalRankings = [...game.rankings];
+    activePlayers.forEach(id => {
+      finalRankings.push({ id, name: game.players[id].name, rank: finalRankings.length + 1 });
+    });
+    const winner = finalRankings[0];
+    io.to(roomId).emit('game_over', {
+      winnerId: winner?.id,
+      winnerName: winner?.name,
+      rankings: finalRankings,
+      results: game.playerOrder.map(id => {
+        const pl = game.players[id];
+        const r = finalRankings.find(fr => fr.id === id);
+        return { id, name: pl.name, cardCount: pl.hand.length, rank: r?.rank || game.playerOrder.length, won: id === winner?.id };
+      }),
+    });
+    broadcastRoomList();
+    return;
+  }
+
+  if (wasCurrentPlayer) {
+    game.hasPlayedThisTurn = false;
+    game.extraTurnActive = false;
+    game.penaltyActive = false;
+    game.penaltyStack = 0;
+    advanceTurn(game, 0);
+  }
+  broadcastGameState(game, roomId);
 }
 
 // ─── Socket Handlers ──────────────────────────────────────────────────────────
 io.on('connection', socket => {
+
   socket.on('join', ({ name }) => {
-    if (state.phase !== 'lobby') { socket.emit('join_error', { msg: '게임이 진행 중입니다.' }); return; }
-    if (Object.keys(state.players).length >= MAX_PLAYERS) { socket.emit('join_error', { msg: '방이 꽉 찼습니다. (최대 5명)' }); return; }
-    const isHost = Object.keys(state.players).length === 0;
-    state.players[socket.id] = {
-      id: socket.id, name: name.trim().slice(0, 12) || '익명',
-      hand: [], oneCardDeclared: false, isHost,
-    };
-    io.emit('lobby_update', buildLobbyState());
+    const cleanName = (name || '').trim().slice(0, 12) || '익명';
+    socketName.set(socket.id, cleanName);
+    socket.emit('join_ok', { name: cleanName });
+    socket.emit('room_list', { rooms: getRoomList() });
   });
 
+  socket.on('get_rooms', () => {
+    socket.emit('room_list', { rooms: getRoomList() });
+  });
+
+  socket.on('create_room', ({ roomName, password }) => {
+    const name = socketName.get(socket.id);
+    if (!name || socketRoom.has(socket.id)) return;
+
+    const id = generateRoomId();
+    const rName = (roomName || '').trim().slice(0, 30) || `${name}의 방`;
+    const rPass = (password || '').trim().slice(0, 20) || null;
+
+    const game = makeGameState();
+    game.players[socket.id] = { id: socket.id, name, hand: [], oneCardDeclared: false, isHost: true };
+
+    const room = { id, name: rName, password: rPass, game, rematchVotes: new Set() };
+    rooms.set(id, room);
+    socketRoom.set(socket.id, id);
+    socket.join(id);
+
+    socket.emit('room_joined', { roomId: id, roomName: rName });
+    socket.emit('lobby_update', buildLobbyState(game));
+    broadcastRoomList();
+  });
+
+  socket.on('join_room', ({ roomId, password }) => {
+    const name = socketName.get(socket.id);
+    if (!name || socketRoom.has(socket.id)) return;
+
+    const room = rooms.get(roomId);
+    if (!room) { socket.emit('room_error', { msg: '존재하지 않는 방입니다.' }); return; }
+    if (room.game.phase !== 'lobby' && room.game.phase !== 'ended') {
+      socket.emit('room_error', { msg: '게임이 진행 중인 방입니다.' }); return;
+    }
+    if (Object.keys(room.game.players).length >= MAX_PLAYERS) {
+      socket.emit('room_error', { msg: '방이 꽉 찼습니다. (최대 5명)' }); return;
+    }
+    if (room.password && room.password !== (password || '').trim()) {
+      socket.emit('room_error', { msg: '비밀번호가 틀렸습니다.', code: 'WRONG_PASSWORD' }); return;
+    }
+
+    room.game.players[socket.id] = { id: socket.id, name, hand: [], oneCardDeclared: false, isHost: false };
+    socketRoom.set(socket.id, roomId);
+    socket.join(roomId);
+
+    socket.emit('room_joined', { roomId, roomName: room.name });
+    io.to(roomId).emit('lobby_update', buildLobbyState(room.game));
+    broadcastRoomList();
+  });
+
+  socket.on('leave_room', () => { handleLeaveRoom(socket); });
+
   socket.on('start_game', () => {
-    const p = state.players[socket.id];
-    if (!p?.isHost || state.phase !== 'lobby') return;
-    if (Object.keys(state.players).length < 2) return;
-    startGame();
+    const roomId = socketRoom.get(socket.id);
+    if (!roomId) return;
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const p = room.game.players[socket.id];
+    if (!p?.isHost || room.game.phase !== 'lobby') return;
+    if (Object.keys(room.game.players).length < 2) return;
+    startGame(room.game, roomId);
   });
 
   socket.on('play_cards', ({ cardIds }) => {
-    if (state.phase !== 'playing') return;
-    if (socket.id !== currentPlayerId()) return;
-    if (state.waitingSuitChange) return;
-    const player = state.players[socket.id];
+    const roomId = socketRoom.get(socket.id);
+    if (!roomId) return;
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const game = room.game;
+    if (game.phase !== 'playing') return;
+    if (socket.id !== currentPlayerId(game)) return;
+    if (game.waitingSuitChange) return;
+    const player = game.players[socket.id];
     if (!player) return;
 
     const handMap = new Map(player.hand.map(c => [c.id, c]));
     const cards = (cardIds || []).map(id => handMap.get(id)).filter(Boolean);
 
-    const { valid, reason } = validatePlay(cards);
+    const { valid, reason } = validatePlay(game, cards);
     if (!valid) { socket.emit('play_error', { reason }); return; }
 
-    processCards(cards);
-    checkFinish();
-    if (state.phase === 'playing') {
-      if (!state.extraTurnActive && !state.waitingSuitChange) {
-        const skips = state.pendingSkips;
-        advanceTurn(skips);
+    processCards(game, roomId, cards);
+    checkFinish(game, roomId);
+    if (game.phase === 'playing') {
+      if (!game.extraTurnActive && !game.waitingSuitChange) {
+        advanceTurn(game, game.pendingSkips);
       }
-      broadcastGameState();
+      broadcastGameState(game, roomId);
     }
   });
 
   socket.on('draw_card', () => {
-    if (state.phase !== 'playing') return;
-    if (socket.id !== currentPlayerId()) return;
-    if (state.hasPlayedThisTurn && !state.extraTurnActive) return;
-    const player = state.players[socket.id];
+    const roomId = socketRoom.get(socket.id);
+    if (!roomId) return;
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const game = room.game;
+    if (game.phase !== 'playing') return;
+    if (socket.id !== currentPlayerId(game)) return;
+    if (game.hasPlayedThisTurn && !game.extraTurnActive) return;
+    const player = game.players[socket.id];
     if (!player) return;
 
-    if (state.penaltyActive && state.penaltyStack > 0) {
-      const drawn = drawFromDeck(state.penaltyStack);
+    if (game.penaltyActive && game.penaltyStack > 0) {
+      const drawn = drawFromDeck(game, game.penaltyStack);
       player.hand.push(...drawn);
-      state.penaltyStack = 0;
-      state.penaltyActive = false;
+      game.penaltyStack = 0;
+      game.penaltyActive = false;
     } else {
-      const drawn = drawFromDeck(1);
+      const drawn = drawFromDeck(game, 1);
       player.hand.push(...drawn);
     }
 
     if (player.hand.length !== 1) player.oneCardDeclared = false;
-    if (state.oneCardChallenge?.playerId === socket.id) state.oneCardChallenge = null;
+    if (game.oneCardChallenge?.playerId === socket.id) game.oneCardChallenge = null;
 
-    state.extraTurnActive = false;
-    state.extraTurnSuit = null;
-    advanceTurn(0);
-    broadcastGameState();
+    game.extraTurnActive = false;
+    game.extraTurnSuit = null;
+    advanceTurn(game, 0);
+    broadcastGameState(game, roomId);
   });
 
   socket.on('choose_suit', ({ suit }) => {
-    console.log(`[CHOOSE_SUIT] by=${state.players[socket.id]?.name} currentPlayer=${state.players[currentPlayerId()]?.name} waitingSuit=${state.waitingSuitChange} suit=${suit}`);
-    if (state.phase !== 'playing') return;
-    if (socket.id !== currentPlayerId()) return;
-    if (!state.waitingSuitChange) return;
+    const roomId = socketRoom.get(socket.id);
+    if (!roomId) return;
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const game = room.game;
+    if (game.phase !== 'playing') return;
+    if (socket.id !== currentPlayerId(game)) return;
+    if (!game.waitingSuitChange) return;
     if (!SUITS.includes(suit)) return;
 
-    state.sevenSuit = suit;
-    state.waitingSuitChange = false;
+    game.sevenSuit = suit;
+    game.waitingSuitChange = false;
 
-    const suitName = { spades:'스페이드', hearts:'하트', diamonds:'다이아', clubs:'클로버' }[suit];
-    const suitSym  = { spades:'♠', hearts:'♥', diamonds:'♦', clubs:'♣' }[suit];
-    const pName = state.players[socket.id]?.name || '';
-    io.emit('chat_msg', { name: null, msg: `${pName} 님이 ${suitSym} ${suitName}로 무늬를 선언했습니다.`, sys: true });
+    const suitName = { spades: '스페이드', hearts: '하트', diamonds: '다이아', clubs: '클로버' }[suit];
+    const suitSym  = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' }[suit];
+    const pName = game.players[socket.id]?.name || '';
+    io.to(roomId).emit('chat_msg', { name: null, msg: `${pName} 님이 ${suitSym} ${suitName}로 무늬를 선언했습니다.`, sys: true });
 
-    checkFinish();
-    if (state.phase === 'playing') {
-      const skips = state.pendingSkips;
-      console.log(`[CHOOSE_SUIT] calling advanceTurn(${skips})`);
-      advanceTurn(skips);
-      broadcastGameState();
-    } else {
-      console.log(`[CHOOSE_SUIT] phase=${state.phase}, skipping advanceTurn`);
+    checkFinish(game, roomId);
+    if (game.phase === 'playing') {
+      advanceTurn(game, game.pendingSkips);
+      broadcastGameState(game, roomId);
     }
   });
 
   socket.on('one_card_key', ({ key }) => {
-    if (state.phase !== 'playing') return;
-    if (!state.oneCardChallenge) return;
-    if (key !== state.oneCardChallenge.requiredKey) return;
+    const roomId = socketRoom.get(socket.id);
+    if (!roomId) return;
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const game = room.game;
+    if (game.phase !== 'playing') return;
+    if (!game.oneCardChallenge) return;
+    if (key !== game.oneCardChallenge.requiredKey) return;
 
-    const { playerId, playerName } = state.oneCardChallenge;
-    const presser = state.players[socket.id];
+    const { playerId, playerName } = game.oneCardChallenge;
+    const presser = game.players[socket.id];
     if (!presser) return;
-    const target = state.players[playerId];
-    if (!target || target.hand.length !== 1) { state.oneCardChallenge = null; broadcastGameState(); return; }
+    const target = game.players[playerId];
+    if (!target || target.hand.length !== 1) {
+      game.oneCardChallenge = null;
+      broadcastGameState(game, roomId);
+      return;
+    }
 
-    state.oneCardChallenge = null;
+    game.oneCardChallenge = null;
 
     if (socket.id === playerId) {
       target.oneCardDeclared = true;
-      io.emit('one_card_result', { type: 'declare', targetId: playerId, targetName: playerName, byName: presser.name });
+      io.to(roomId).emit('one_card_result', { type: 'declare', targetId: playerId, targetName: playerName, byName: presser.name });
     } else {
-      const drawn = drawFromDeck(1);
+      const drawn = drawFromDeck(game, 1);
       target.hand.push(...drawn);
       target.oneCardDeclared = false;
-      io.emit('one_card_result', { type: 'callout', targetId: playerId, targetName: playerName, byName: presser.name });
+      io.to(roomId).emit('one_card_result', { type: 'callout', targetId: playerId, targetName: playerName, byName: presser.name });
     }
-    broadcastGameState();
+    broadcastGameState(game, roomId);
   });
 
   socket.on('chat', ({ msg }) => {
-    const p = state.players[socket.id];
-    if (!p) return;
-    const text = msg.trim().slice(0, 200);
+    const roomId = socketRoom.get(socket.id);
+    if (!roomId) return;
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const name = room.game.players[socket.id]?.name || socketName.get(socket.id);
+    if (!name) return;
+    const text = (msg || '').trim().slice(0, 200);
     if (!text) return;
-    io.emit('chat_msg', { name: p.name, msg: text });
+    io.to(roomId).emit('chat_msg', { name, msg: text });
   });
 
   socket.on('rematch_vote', () => {
-    if (state.phase !== 'ended') return;
-    state.rematchVotes.add(socket.id);
-    io.emit('rematch_status', { votes: state.rematchVotes.size, total: Object.keys(state.players).length });
-    if (state.rematchVotes.size >= Object.keys(state.players).length) {
-      const saved = Object.values(state.players).map(p => ({ id: p.id, name: p.name }));
-      state = makeState();
+    const roomId = socketRoom.get(socket.id);
+    if (!roomId) return;
+    const room = rooms.get(roomId);
+    if (!room || room.game.phase !== 'ended') return;
+
+    room.rematchVotes.add(socket.id);
+    const total = Object.keys(room.game.players).length;
+    io.to(roomId).emit('rematch_status', { votes: room.rematchVotes.size, total });
+
+    if (room.rematchVotes.size >= total) {
+      const saved = Object.values(room.game.players).map(p => ({ id: p.id, name: p.name }));
+      room.game = makeGameState();
+      room.rematchVotes = new Set();
       saved.forEach((p, i) => {
-        state.players[p.id] = { id: p.id, name: p.name, hand: [], oneCardDeclared: false, isHost: i === 0 };
+        room.game.players[p.id] = { id: p.id, name: p.name, hand: [], oneCardDeclared: false, isHost: i === 0 };
       });
-      io.emit('lobby_update', buildLobbyState());
+      io.to(roomId).emit('lobby_update', buildLobbyState(room.game));
+      broadcastRoomList();
     }
   });
 
   socket.on('disconnect', () => {
-    const p = state.players[socket.id];
-    if (!p) return;
-    const pName = p.name;
-    delete state.players[socket.id];
-    state.rematchVotes.delete(socket.id);
-    if (state.finished.has(socket.id)) {
-      state.finished.delete(socket.id);
-      state.rankings = state.rankings.filter(r => r.id !== socket.id);
-      state.rankings.forEach((r, i) => { r.rank = i + 1; });
-    }
-
-    if (state.phase === 'lobby') {
-      const ids = Object.keys(state.players);
-      if (ids.length > 0 && !Object.values(state.players).some(pl => pl.isHost))
-        state.players[ids[0]].isHost = true;
-      io.emit('lobby_update', buildLobbyState());
-      return;
-    }
-
-    const wasCurrentPlayer = socket.id === currentPlayerId();
-    state.playerOrder = state.playerOrder.filter(id => id !== socket.id);
-
-    if (state.playerOrder.length === 0) { state = makeState(); return; }
-
-    if (state.currentIndex >= state.playerOrder.length)
-      state.currentIndex = 0;
-
-    io.emit('player_left', { name: pName });
-
-    const activePlayers = state.playerOrder.filter(id => !state.finished.has(id));
-
-    if (activePlayers.length <= 1) {
-      state.phase = 'ended';
-      const finalRankings = [...state.rankings];
-      activePlayers.forEach(id => {
-        finalRankings.push({ id, name: state.players[id].name, rank: finalRankings.length + 1 });
-      });
-      const winner = finalRankings[0];
-      io.emit('game_over', {
-        winnerId: winner?.id,
-        winnerName: winner?.name,
-        rankings: finalRankings,
-        results: state.playerOrder.map(id => {
-          const pl = state.players[id];
-          const r = finalRankings.find(fr => fr.id === id);
-          return { id, name: pl.name, cardCount: pl.hand.length, rank: r?.rank || state.playerOrder.length, won: id === winner?.id };
-        }),
-      });
-      return;
-    }
-
-    if (wasCurrentPlayer) {
-      state.hasPlayedThisTurn = false;
-      state.extraTurnActive = false;
-      state.penaltyActive = false;
-      state.penaltyStack = 0;
-      advanceTurn(0);
-    }
-    broadcastGameState();
+    handleLeaveRoom(socket);
+    socketName.delete(socket.id);
   });
 });
 

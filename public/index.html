@@ -1359,6 +1359,114 @@
       color: #f48771;
     }
 
+    /* ── Room list ── */
+    #room-list-overlay .dialog {
+      min-width: 380px;
+      max-width: 520px;
+    }
+
+    #room-list-items {
+      max-height: 280px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+      min-height: 60px;
+    }
+
+    .room-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 10px;
+      border: 1px solid #3c3c3c;
+      margin-bottom: 5px;
+      cursor: pointer;
+      background: #1e1e1e;
+      gap: 8px;
+    }
+
+    .room-item:hover {
+      background: #2d2d2d;
+      border-color: #4ec9b0;
+    }
+
+    .room-item-name {
+      flex: 1;
+      font-size: 12px;
+      color: #d4d4d4;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .room-item-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+      font-size: 10px;
+      color: #9d9d9d;
+    }
+
+    .room-lock { color: #f48771; }
+
+    .room-status-ended {
+      background: #2d2d2d;
+      border: 1px solid #3c3c3c;
+      padding: 1px 5px;
+      font-size: 9px;
+    }
+
+    .room-empty {
+      font-size: 11px;
+      color: #555;
+      text-align: center;
+      padding: 20px 0;
+    }
+
+    #room-list-error, #password-error {
+      color: #f48771;
+      font-size: 11px;
+      margin-top: 6px;
+      min-height: 16px;
+    }
+
+    .private-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 11px;
+      color: #9d9d9d;
+    }
+
+    .toggle-btn {
+      margin-left: auto;
+      padding: 2px 12px;
+      font-size: 11px;
+      font-family: inherit;
+      border: 1px solid #3c3c3c;
+      background: #1e1e1e;
+      color: #555;
+      cursor: pointer;
+    }
+
+    .toggle-btn.on {
+      border-color: #4ec9b0;
+      color: #4ec9b0;
+      background: rgba(78, 201, 176, 0.08);
+    }
+
+    .btn-ghost {
+      padding: 6px 14px;
+      background: #1e1e1e;
+      border: 1px solid #3c3c3c;
+      color: #9d9d9d;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: inherit;
+    }
+
+    .btn-ghost:hover { background: #2d2d2d; color: #d4d4d4; }
+
     /* ── Panel toggle (Escape) ── */
     .game-panel-hidden #game-overlay,
     .game-panel-hidden #right-panel {
@@ -1531,6 +1639,49 @@
   </div>
 
 
+  <!-- Room list -->
+  <div class="overlay hidden" id="room-list-overlay">
+    <div class="dialog" style="min-width:380px;max-width:520px;">
+      <h2>방 목록</h2>
+      <div id="room-list-items"></div>
+      <div id="room-list-error"></div>
+      <div class="dialog-row">
+        <button id="create-room-btn">방 만들기</button>
+        <button class="btn-ghost" id="refresh-rooms-btn">새로고침</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create room -->
+  <div class="overlay hidden" id="create-room-overlay">
+    <div class="dialog">
+      <h2>방 만들기</h2>
+      <input id="room-name-input" type="text" maxlength="30" placeholder="방 이름">
+      <div class="private-row" style="margin-top:8px;">
+        <span>비공개 방</span>
+        <button type="button" id="room-private-toggle" class="toggle-btn">OFF</button>
+      </div>
+      <input id="room-password-input" type="password" maxlength="20" placeholder="비밀번호" style="display:none;">
+      <div class="dialog-row" style="margin-top:10px;">
+        <button id="create-room-confirm-btn">만들기</button>
+        <button class="btn-ghost" id="create-room-cancel-btn">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Password prompt -->
+  <div class="overlay hidden" id="password-overlay">
+    <div class="dialog">
+      <h2>비밀번호 입력</h2>
+      <input id="password-join-input" type="password" placeholder="비밀번호" maxlength="20">
+      <div id="password-error"></div>
+      <div class="dialog-row" style="margin-top:10px;">
+        <button id="password-confirm-btn">확인</button>
+        <button class="btn-ghost" id="password-cancel-btn">취소</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Login -->
   <div class="overlay" id="login-overlay">
     <div class="dialog">
@@ -1549,6 +1700,7 @@
       <div class="dialog-row">
         <button id="start-btn" disabled>게임 시작</button>
         <span id="lobby-hint">2명 이상 필요</span>
+        <button class="btn-ghost" id="leave-lobby-btn" style="margin-left:auto;">나가기</button>
       </div>
     </div>
   </div>
@@ -1569,7 +1721,10 @@
         <tbody id="result-body"></tbody>
       </table>
       <div id="rematch-status"></div>
-      <button id="rematch-btn">다시하기 투표</button>
+      <div class="dialog-row">
+        <button id="rematch-btn">다시하기 투표</button>
+        <button class="btn-ghost" id="leave-result-btn">나가기</button>
+      </div>
     </div>
   </div>
 
@@ -1607,6 +1762,7 @@
     let myName = '';
     let escActive = false;
     let oneCardChallenge = null;
+    let pendingJoinRoomId = null;
 
     // ── VSCode fake code ───────────────────────────────────────────────────────────
     const fakeCode = `<span class="cmt">// cardEngine.js — core game logic</span>
@@ -1783,12 +1939,12 @@
 
       if (card.rank === 'BW') {
         el.classList.add('joker-bw');
-        el.innerHTML = `<div class="card-tl">🃏<br>BW</div><div class="card-br">🃏<br>BW</div>`;
+        el.innerHTML = `<div class="card-tl">★<br>BW</div><div class="card-br">★<br>BW</div>`;
         return el;
       }
       if (card.rank === 'COLOR') {
         el.classList.add('joker-color');
-        el.innerHTML = `<div class="card-tl">🃏<br>CLR</div><div class="card-br">🃏<br>CLR</div>`;
+        el.innerHTML = `<div class="card-tl">★<br>CLR</div><div class="card-br">★<br>CLR</div>`;
         return el;
       }
 
@@ -2082,6 +2238,55 @@
       btnDraw.disabled = !(isMyTurn && (!gs.hasPlayedThisTurn || gs.extraTurnActive));
     }
 
+    // ── Room list render ──────────────────────────────────────────────────────────
+    function renderRoomList(roomArr) {
+      const el = document.getElementById('room-list-items');
+      el.innerHTML = '';
+      if (!roomArr || roomArr.length === 0) {
+        el.innerHTML = '<div class="room-empty">방이 없습니다. 방을 만들어 시작하세요.</div>';
+        return;
+      }
+      roomArr.forEach(room => {
+        const div = document.createElement('div');
+        div.className = 'room-item';
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'room-item-name';
+        nameEl.textContent = room.name;
+
+        const meta = document.createElement('div');
+        meta.className = 'room-item-meta';
+        if (room.hasPassword) {
+          const lock = document.createElement('span');
+          lock.className = 'room-lock'; lock.textContent = '[비공개]';
+          meta.appendChild(lock);
+        }
+        const cnt = document.createElement('span');
+        cnt.textContent = `${room.playerCount}/${room.maxPlayers}명`;
+        meta.appendChild(cnt);
+        if (room.phase === 'ended') {
+          const s = document.createElement('span');
+          s.className = 'room-status-ended'; s.textContent = '종료됨';
+          meta.appendChild(s);
+        }
+
+        div.appendChild(nameEl);
+        div.appendChild(meta);
+        div.addEventListener('click', () => {
+          document.getElementById('room-list-error').textContent = '';
+          if (room.hasPassword) {
+            pendingJoinRoomId = room.id;
+            document.getElementById('password-join-input').value = '';
+            document.getElementById('password-error').textContent = '';
+            document.getElementById('password-overlay').classList.remove('hidden');
+          } else {
+            socket.emit('join_room', { roomId: room.id, password: '' });
+          }
+        });
+        el.appendChild(div);
+      });
+    }
+
     // ── Challenge banner ──────────────────────────────────────────────────────────
     function renderChallengeBanner() {
       const banner = document.getElementById('challenge-banner');
@@ -2267,14 +2472,48 @@
     // ── Socket events ─────────────────────────────────────────────────────────────
     socket.on('connect', () => { myId = socket.id; });
 
-    socket.on('join_error', ({ msg }) => {
-      document.getElementById('join-error').textContent = msg;
+    socket.on('join_ok', ({ name }) => {
+      myName = name;
+      phase = 'room-list';
+      loginOverlay.classList.add('hidden');
+      document.getElementById('room-list-overlay').classList.remove('hidden');
+      document.getElementById('room-list-error').textContent = '';
+    });
+
+    socket.on('room_list', ({ rooms: roomArr }) => {
+      if (phase === 'room-list') renderRoomList(roomArr);
+    });
+
+    socket.on('room_joined', () => {
+      phase = 'lobby';
+      document.getElementById('room-list-overlay').classList.add('hidden');
+      document.getElementById('create-room-overlay').classList.add('hidden');
+      document.getElementById('password-overlay').classList.add('hidden');
+    });
+
+    socket.on('room_error', ({ msg, code }) => {
+      if (code === 'WRONG_PASSWORD') {
+        document.getElementById('password-error').textContent = msg;
+        document.getElementById('password-overlay').classList.remove('hidden');
+      } else {
+        document.getElementById('room-list-error').textContent = msg;
+        document.getElementById('password-overlay').classList.add('hidden');
+      }
+    });
+
+    socket.on('left_room', () => {
+      phase = 'room-list';
+      gs = null; myHand = []; selectedIds.clear(); oneCardChallenge = null;
+      lobbyOverlay.classList.add('hidden');
+      resultOverlay.classList.add('hidden');
+      document.getElementById('room-list-overlay').classList.remove('hidden');
+      socket.emit('get_rooms');
     });
 
     socket.on('lobby_update', ({ players }) => {
+      if (phase !== 'lobby' && phase !== 'ended') return;
       phase = 'lobby';
       gs = null; myHand = []; selectedIds.clear();
-      loginOverlay.classList.add('hidden');
       lobbyOverlay.classList.remove('hidden');
       resultOverlay.classList.add('hidden');
 
@@ -2333,7 +2572,7 @@
       const sorted = [...results].sort((a, b) => (a.rank || 999) - (b.rank || 999));
       const loser = sorted[sorted.length - 1];
       document.getElementById('result-winner').textContent =
-        winnerName ? `1위: ${winnerName} 🏆  꼴찌: ${loser?.name}` : '게임 종료';
+        winnerName ? `1위: ${winnerName}` : '게임 종료';
       const tbody = document.getElementById('result-body');
       tbody.innerHTML = '';
       sorted.forEach(p => {
@@ -2358,8 +2597,66 @@
     document.getElementById('join-btn').addEventListener('click', () => {
       const name = document.getElementById('name-input').value.trim();
       if (!name) return;
-      myName = name;
       socket.emit('join', { name });
+    });
+
+    document.getElementById('create-room-btn').addEventListener('click', () => {
+      document.getElementById('room-name-input').value = `${myName}의 방`;
+      document.getElementById('room-password-input').value = '';
+      const tog = document.getElementById('room-private-toggle');
+      tog.classList.remove('on'); tog.textContent = 'OFF';
+      document.getElementById('room-password-input').style.display = 'none';
+      document.getElementById('create-room-overlay').classList.remove('hidden');
+    });
+
+    document.getElementById('refresh-rooms-btn').addEventListener('click', () => {
+      socket.emit('get_rooms');
+    });
+
+    document.getElementById('room-private-toggle').addEventListener('click', () => {
+      const btn = document.getElementById('room-private-toggle');
+      const on = btn.classList.toggle('on');
+      btn.textContent = on ? 'ON' : 'OFF';
+      document.getElementById('room-password-input').style.display = on ? 'block' : 'none';
+    });
+
+    document.getElementById('create-room-confirm-btn').addEventListener('click', () => {
+      const rName = document.getElementById('room-name-input').value.trim() || `${myName}의 방`;
+      const isPrivate = document.getElementById('room-private-toggle').classList.contains('on');
+      const password = isPrivate ? document.getElementById('room-password-input').value.trim() : '';
+      socket.emit('create_room', { roomName: rName, password });
+      document.getElementById('create-room-overlay').classList.add('hidden');
+    });
+
+    document.getElementById('create-room-cancel-btn').addEventListener('click', () => {
+      document.getElementById('create-room-overlay').classList.add('hidden');
+    });
+
+    document.getElementById('password-confirm-btn').addEventListener('click', () => {
+      const pw = document.getElementById('password-join-input').value;
+      socket.emit('join_room', { roomId: pendingJoinRoomId, password: pw });
+    });
+
+    document.getElementById('password-cancel-btn').addEventListener('click', () => {
+      document.getElementById('password-overlay').classList.add('hidden');
+      document.getElementById('password-error').textContent = '';
+      pendingJoinRoomId = null;
+    });
+
+    document.getElementById('password-join-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('password-confirm-btn').click();
+    });
+
+    document.getElementById('room-name-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('create-room-confirm-btn').click();
+    });
+
+    document.getElementById('leave-lobby-btn').addEventListener('click', () => {
+      socket.emit('leave_room');
+    });
+
+    document.getElementById('leave-result-btn').addEventListener('click', () => {
+      socket.emit('leave_room');
     });
 
     document.getElementById('start-btn').addEventListener('click', () => {
