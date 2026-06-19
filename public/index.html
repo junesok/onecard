@@ -1,0 +1,2382 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sheet1 - Microsoft Excel</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 12px;
+      background: #f0f0f0;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Excel Chrome ── */
+    #title-bar {
+      background: #217346;
+      color: #fff;
+      padding: 4px 8px;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    #title-bar .file-name {
+      font-weight: 600;
+    }
+
+    #title-bar .win-controls {
+      margin-left: auto;
+      display: flex;
+      gap: 4px;
+    }
+
+    #title-bar .win-btn {
+      width: 18px;
+      height: 18px;
+      background: rgba(255, 255, 255, 0.15);
+      border: none;
+      color: #fff;
+      font-size: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: default;
+    }
+
+    #ribbon {
+      background: #fff;
+      border-bottom: 1px solid #d0d0d0;
+      padding: 0 4px;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    #ribbon-tabs {
+      display: flex;
+    }
+
+    .rtab {
+      padding: 5px 10px;
+      font-size: 11px;
+      cursor: default;
+      border-bottom: 2px solid transparent;
+      color: #333;
+    }
+
+    .rtab.active {
+      border-bottom-color: #217346;
+      color: #217346;
+      font-weight: 600;
+    }
+
+    #ribbon-content {
+      display: flex;
+      gap: 16px;
+      padding: 4px 8px;
+      align-items: center;
+      border-top: 1px solid #e8e8e8;
+    }
+
+    .rgroup {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      padding-right: 16px;
+      border-right: 1px solid #e0e0e0;
+    }
+
+    .rgroup:last-child {
+      border-right: none;
+    }
+
+    .rbtn {
+      padding: 3px 8px;
+      background: #fff;
+      border: 1px solid #ccc;
+      font-size: 11px;
+      cursor: default;
+      color: #333;
+    }
+
+    .rbtn:hover {
+      background: #e8f0e8;
+    }
+
+    #formula-bar {
+      display: flex;
+      align-items: center;
+      border-bottom: 1px solid #ccc;
+      background: #fff;
+      padding: 2px 4px;
+      gap: 4px;
+      flex-shrink: 0;
+      height: 24px;
+    }
+
+    #cell-ref {
+      width: 52px;
+      border: 1px solid #ccc;
+      padding: 1px 4px;
+      font-size: 11px;
+      text-align: center;
+    }
+
+    #formula-sep {
+      color: #999;
+      font-size: 14px;
+      padding: 0 2px;
+    }
+
+    #formula-input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-size: 11px;
+      color: #333;
+      background: transparent;
+      cursor: default;
+    }
+
+    /* ── Main Layout ── */
+    #main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Sheet area ── */
+    #sheet-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+      background: #fff;
+    }
+
+    #col-header {
+      display: flex;
+      background: #f2f2f2;
+      border-bottom: 1px solid #ccc;
+      flex-shrink: 0;
+      margin-left: 32px;
+    }
+
+    .col-cell {
+      min-width: 64px;
+      border-right: 1px solid #ccc;
+      text-align: center;
+      padding: 2px 0;
+      font-size: 10px;
+      color: #555;
+      flex-shrink: 0;
+    }
+
+    #sheet-body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    #row-header {
+      width: 32px;
+      background: #f2f2f2;
+      border-right: 1px solid #ccc;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .row-cell {
+      height: 20px;
+      border-bottom: 1px solid #e0e0e0;
+      text-align: center;
+      line-height: 20px;
+      font-size: 10px;
+      color: #555;
+    }
+
+    #grid-lines {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .grid-row {
+      display: flex;
+      height: 20px;
+    }
+
+    .grid-cell {
+      min-width: 64px;
+      height: 20px;
+      border-right: 1px solid #e8e8e8;
+      border-bottom: 1px solid #e8e8e8;
+      flex-shrink: 0;
+    }
+
+    #sheet-tabs {
+      background: #f0f0f0;
+      border-top: 1px solid #ccc;
+      display: flex;
+      align-items: center;
+      padding: 0 4px;
+      flex-shrink: 0;
+      gap: 2px;
+      height: 22px;
+    }
+
+    .stab {
+      padding: 2px 12px;
+      border: 1px solid #ccc;
+      border-bottom: none;
+      background: #e8e8e8;
+      font-size: 11px;
+      cursor: default;
+    }
+
+    .stab.active {
+      background: #fff;
+      border-top: 2px solid #217346;
+    }
+
+    /* ── Game Overlay ── */
+    #game-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      z-index: 10;
+      background: #1e1e1e;
+    }
+
+    /* ── Game Status Bar ── */
+    #game-status-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 16px;
+      background: #252526;
+      border-bottom: 1px solid #3c3c3c;
+      flex-shrink: 0;
+      font-size: 11px;
+      min-height: 30px;
+    }
+
+    #turn-indicator {
+      color: #9d9d9d;
+    }
+
+    #turn-indicator.my-turn {
+      color: #4ec9b0;
+      font-weight: 700;
+    }
+
+    #penalty-badge {
+      display: none;
+      border: 1px solid #cd3131;
+      background: rgba(205, 49, 49, 0.12);
+      color: #f48771;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 10px;
+      margin-left: auto;
+    }
+
+    #penalty-badge.show {
+      display: block;
+    }
+
+    /* ── Opponents ── */
+    #opponents-area {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+      padding: 10px 16px 6px;
+    }
+
+    .opponent-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 12px;
+      background: #252526;
+      border: 1px solid #3c3c3c;
+      min-width: 76px;
+      max-width: 100px;
+      position: relative;
+    }
+
+    .opponent-box.my-turn-indicator {
+      border-color: #4ec9b0;
+    }
+
+    .opp-name {
+      font-size: 10px;
+      font-weight: 600;
+      color: #d4d4d4;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 80px;
+    }
+
+    .opp-count {
+      font-size: 10px;
+      color: #9d9d9d;
+    }
+
+    .opp-cards {
+      display: flex;
+      position: relative;
+      height: 36px;
+      width: 44px;
+    }
+
+    .opp-card-back {
+      width: 26px;
+      height: 36px;
+      border-radius: 3px;
+      border: 1px solid #3a5a8a;
+      background: repeating-linear-gradient(45deg, #1a3a6a, #1a3a6a 3px, #1e4485 3px, #1e4485 6px);
+      position: absolute;
+    }
+
+    .one-card-badge {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      background: #cd3131;
+      color: #fff;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 1px 4px;
+    }
+
+    .one-card-badge.declared {
+      background: #4ec9b0;
+      color: #1e1e1e;
+    }
+
+    /* ── Center ── */
+    #center-area {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 40px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    #deck-pile {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #deck-stack {
+      position: relative;
+      width: 58px;
+      height: 88px;
+    }
+
+    .deck-card {
+      position: absolute;
+      width: 58px;
+      height: 88px;
+      border-radius: 6px;
+      border: 1px solid #3a5a8a;
+      background: repeating-linear-gradient(45deg, #1a3a6a, #1a3a6a 4px, #1e4485 4px, #1e4485 8px);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    }
+
+    #deck-count-label {
+      font-size: 10px;
+      color: #9d9d9d;
+    }
+
+    #field-pile {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #field-label {
+      font-size: 10px;
+      color: #9d9d9d;
+    }
+
+    /* ── My area ── */
+    #my-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+      padding: 10px 16px 14px;
+      background: #252526;
+      border-top: 1px solid #3c3c3c;
+    }
+
+    #my-label {
+      font-size: 10px;
+      color: #9d9d9d;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    #my-hand {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 4px 4px 8px;
+      min-height: 100px;
+      max-width: 100%;
+      align-items: flex-end;
+    }
+
+    #action-buttons {
+      display: flex;
+      gap: 6px;
+    }
+
+    .action-btn {
+      padding: 5px 14px;
+      font-size: 11px;
+      font-family: inherit;
+      border: 1px solid #3c3c3c;
+      background: #2d2d2d;
+      cursor: pointer;
+      color: #d4d4d4;
+      white-space: nowrap;
+    }
+
+    .action-btn:hover:not(:disabled) {
+      background: #3c3c3c;
+      border-color: #5a5a5a;
+    }
+
+    .action-btn:disabled {
+      color: #4a4a4a;
+      cursor: default;
+      background: #252526;
+      border-color: #2d2d2d;
+    }
+
+    .action-btn.primary {
+      background: #1e4a35;
+      color: #4ec9b0;
+      border-color: #2d7d5c;
+    }
+
+    .action-btn.primary:hover:not(:disabled) {
+      background: #2d7d5c;
+      color: #fff;
+    }
+
+    .action-btn.primary:disabled {
+      background: #252526;
+      color: #2a3d30;
+      border-color: #252526;
+    }
+
+    .action-btn.danger {
+      background: #3a1a1a;
+      color: #f48771;
+      border-color: #6b2a2a;
+    }
+
+    .action-btn.danger:hover:not(:disabled) {
+      background: #6b2a2a;
+      color: #fff;
+    }
+
+    .action-btn.danger:disabled {
+      background: #252526;
+      color: #3a2525;
+      border-color: #252526;
+    }
+
+    /* ── Cards ── */
+    .card {
+      width: 58px;
+      height: 88px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      background: #fff;
+      position: relative;
+      cursor: pointer;
+      user-select: none;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+      transition: transform 0.08s, box-shadow 0.08s;
+      flex-shrink: 0;
+    }
+
+    .card.red {
+      color: #cc0000;
+    }
+
+    .card.black-suit {
+      color: #111;
+    }
+
+    .card.selected {
+      transform: translateY(-14px);
+      box-shadow: 0 6px 20px rgba(78, 201, 176, 0.5);
+      border-color: #4ec9b0;
+      border-width: 2px;
+    }
+
+    .card.can-play {
+      border-bottom: 3px solid #4ec9b0;
+    }
+
+    .card.cannot-play {
+      opacity: 0.28;
+    }
+
+    .card.not-my-turn {
+      cursor: default;
+    }
+
+    .card-tl {
+      position: absolute;
+      top: 4px;
+      left: 5px;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.3;
+      text-align: center;
+    }
+
+    .card-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 22px;
+    }
+
+    .card-br {
+      position: absolute;
+      bottom: 4px;
+      right: 5px;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.3;
+      text-align: center;
+      transform: rotate(180deg);
+    }
+
+    .card.joker-bw {
+      background: #222;
+      color: #fff;
+      border-color: #555;
+    }
+
+    .card.joker-bw .card-tl,
+    .card.joker-bw .card-br {
+      color: #fff;
+      font-size: 10px;
+    }
+
+    .card.joker-color {
+      background: linear-gradient(135deg, #e74c3c 25%, #f1c40f 50%, #2ecc71 75%);
+      color: #fff;
+      border-color: #aaa;
+    }
+
+    .card.joker-color .card-tl,
+    .card.joker-color .card-br {
+      color: #fff;
+      font-size: 10px;
+      text-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
+    }
+
+    /* ── Right panel ── */
+    #right-panel {
+      width: 220px;
+      border-left: 1px solid #3c3c3c;
+      background: #252526;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    #hud-panel {
+      padding: 10px 12px;
+      border-bottom: 1px solid #3c3c3c;
+      font-size: 11px;
+    }
+
+    #hud-panel .hud-title {
+      font-weight: 700;
+      color: #4ec9b0;
+      margin-bottom: 8px;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .hud-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+      color: #9d9d9d;
+    }
+
+    .hud-val {
+      font-weight: 600;
+      color: #d4d4d4;
+    }
+
+    #hud-penalty-row {
+      display: none;
+    }
+
+    #hud-penalty-val {
+      color: #f48771;
+    }
+
+    #player-list {
+      padding: 8px 12px;
+      border-bottom: 1px solid #3c3c3c;
+      font-size: 11px;
+      max-height: 140px;
+      overflow-y: auto;
+    }
+
+    #player-list .pl-title {
+      font-weight: 700;
+      color: #9d9d9d;
+      margin-bottom: 6px;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .pl-item {
+      padding: 3px 0;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      justify-content: space-between;
+    }
+
+    .pl-left {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pl-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .pl-dot.turn {
+      background: #4ec9b0;
+      box-shadow: 0 0 0 2px rgba(78, 201, 176, 0.25);
+    }
+
+    .pl-dot.other {
+      background: #555;
+    }
+
+    .pl-name {
+      font-size: 11px;
+      color: #d4d4d4;
+    }
+
+    .pl-right {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: #9d9d9d;
+    }
+
+    .pl-one-card {
+      color: #f48771;
+      font-weight: 700;
+      font-size: 9px;
+    }
+
+    .pl-one-declared {
+      color: #4ec9b0;
+      font-weight: 700;
+      font-size: 9px;
+    }
+
+    #chat-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #chat-header {
+      padding: 5px 12px;
+      background: #252526;
+      border-bottom: 1px solid #3c3c3c;
+      font-size: 10px;
+      font-weight: 700;
+      color: #9d9d9d;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    #chat-log {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 10px;
+      font-size: 11px;
+      background: #1e1e1e;
+    }
+
+    .chat-line {
+      margin-bottom: 4px;
+      line-height: 1.4;
+      color: #d4d4d4;
+    }
+
+    .chat-line .cn {
+      font-weight: 700;
+      color: #4ec9b0;
+    }
+
+    .chat-line.sys {
+      color: #9d9d9d;
+      font-style: italic;
+    }
+
+    #chat-input-row {
+      display: flex;
+      border-top: 1px solid #3c3c3c;
+    }
+
+    #chat-input {
+      flex: 1;
+      border: none;
+      outline: none;
+      padding: 5px 8px;
+      font-size: 11px;
+      font-family: inherit;
+      background: #2d2d2d;
+      color: #d4d4d4;
+    }
+
+    #chat-input::placeholder {
+      color: #555;
+    }
+
+    #chat-send {
+      padding: 5px 10px;
+      background: #2d7d5c;
+      color: #4ec9b0;
+      border: none;
+      cursor: pointer;
+      font-size: 11px;
+    }
+
+    #chat-send:hover {
+      background: #4ec9b0;
+      color: #1e1e1e;
+    }
+
+    /* ── Overlays ── */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    .overlay.hidden {
+      display: none;
+    }
+
+    .dialog {
+      background: #252526;
+      border: 1px solid #3c3c3c;
+      padding: 20px 24px;
+      min-width: 280px;
+      max-width: 400px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    }
+
+    .dialog h2 {
+      font-size: 13px;
+      color: #4ec9b0;
+      margin-bottom: 12px;
+      border-bottom: 1px solid #3c3c3c;
+      padding-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .dialog p {
+      font-size: 11px;
+      color: #9d9d9d;
+      margin-bottom: 10px;
+    }
+
+    .dialog input {
+      width: 100%;
+      border: 1px solid #3c3c3c;
+      padding: 6px 8px;
+      font-size: 12px;
+      font-family: inherit;
+      outline: none;
+      margin-bottom: 10px;
+      background: #1e1e1e;
+      color: #d4d4d4;
+    }
+
+    .dialog input:focus {
+      border-color: #4ec9b0;
+    }
+
+    .dialog button {
+      padding: 6px 16px;
+      background: #2d7d5c;
+      color: #4ec9b0;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: inherit;
+    }
+
+    .dialog button:disabled {
+      background: #333;
+      color: #555;
+      cursor: default;
+    }
+
+    .dialog button:hover:not(:disabled) {
+      background: #4ec9b0;
+      color: #1e1e1e;
+    }
+
+    .dialog-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    #join-error {
+      color: #f48771;
+      font-size: 11px;
+      margin-top: 6px;
+    }
+
+    #lobby-list {
+      margin-bottom: 10px;
+      font-size: 11px;
+      min-height: 40px;
+    }
+
+    #lobby-list .lp {
+      padding: 3px 0;
+      color: #d4d4d4;
+    }
+
+    #lobby-list .lp.host::after {
+      content: ' (방장)';
+      color: #4ec9b0;
+      font-weight: 700;
+    }
+
+    #lobby-hint {
+      font-size: 11px;
+      color: #9d9d9d;
+      align-self: center;
+    }
+
+    #rematch-status {
+      font-size: 11px;
+      color: #9d9d9d;
+      margin-bottom: 8px;
+    }
+
+    #result-dialog .result-winner {
+      font-size: 16px;
+      font-weight: 900;
+      color: #4ec9b0;
+      margin-bottom: 12px;
+    }
+
+    #result-dialog table {
+      width: 100%;
+      font-size: 11px;
+      border-collapse: collapse;
+      margin-bottom: 10px;
+    }
+
+    #result-dialog th {
+      background: #1e1e1e;
+      padding: 4px 6px;
+      text-align: left;
+      border: 1px solid #3c3c3c;
+      color: #9d9d9d;
+    }
+
+    #result-dialog td {
+      padding: 4px 6px;
+      border: 1px solid #3c3c3c;
+      color: #d4d4d4;
+    }
+
+    /* ── Suit picker ── */
+    .suit-pick-row {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 4px;
+    }
+
+    .suit-pick-btn {
+      padding: 8px 14px;
+      font-size: 16px;
+      line-height: 1.6;
+      text-align: center;
+      font-family: inherit;
+      border: 1px solid #3c3c3c;
+      background: #2d2d2d;
+      cursor: pointer;
+      min-width: 64px;
+      color: #d4d4d4;
+    }
+
+    .suit-pick-btn:hover {
+      background: #3c3c3c;
+      border-color: #4ec9b0;
+    }
+
+    .suit-pick-btn.red {
+      color: #e06c75;
+    }
+
+    .suit-pick-btn.black-suit {
+      color: #d4d4d4;
+    }
+
+
+    /* ── VSCode ESC screen ── */
+    #vscode-screen {
+      position: fixed;
+      inset: 0;
+      background: #1e1e1e;
+      z-index: 300;
+      display: none;
+      flex-direction: column;
+      font-family: 'Menlo', 'Consolas', 'monospace';
+    }
+
+    #vscode-screen.show {
+      display: flex;
+    }
+
+    .vs-titlebar {
+      background: #323233;
+      padding: 0 16px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: #ccc;
+      flex-shrink: 0;
+    }
+
+    .vs-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .vs-dot.red {
+      background: #ff5f57;
+    }
+
+    .vs-dot.yel {
+      background: #ffbd2e;
+    }
+
+    .vs-dot.grn {
+      background: #28ca41;
+    }
+
+    .vs-title {
+      margin: 0 auto;
+      font-size: 12px;
+      color: #ccc;
+    }
+
+    .vs-body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    .vs-sidebar {
+      width: 200px;
+      background: #252526;
+      border-right: 1px solid #3c3c3c;
+      padding: 8px 0;
+      flex-shrink: 0;
+    }
+
+    .vs-sidebar-title {
+      padding: 6px 16px;
+      font-size: 10px;
+      color: #bbb;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      font-weight: 600;
+    }
+
+    .vs-file {
+      padding: 4px 16px 4px 28px;
+      font-size: 12px;
+      color: #ccc;
+      cursor: default;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .vs-file.active {
+      background: #37373d;
+      color: #fff;
+    }
+
+    .vs-file-icon {
+      font-size: 10px;
+      color: #75beff;
+    }
+
+    .vs-editor {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .vs-tabs {
+      background: #252526;
+      border-bottom: 1px solid #3c3c3c;
+      display: flex;
+      flex-shrink: 0;
+    }
+
+    .vs-tab {
+      padding: 8px 16px;
+      font-size: 12px;
+      color: #999;
+      border-right: 1px solid #3c3c3c;
+      cursor: default;
+      white-space: nowrap;
+    }
+
+    .vs-tab.active {
+      background: #1e1e1e;
+      color: #fff;
+      border-top: 1px solid #0078d4;
+    }
+
+    .vs-code {
+      flex: 1;
+      overflow: auto;
+      padding: 12px 0;
+      display: flex;
+    }
+
+    .vs-gutter {
+      width: 48px;
+      text-align: right;
+      padding: 0 12px;
+      color: #555;
+      font-size: 13px;
+      line-height: 21px;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    .vs-lines {
+      flex: 1;
+      padding: 0 12px;
+      font-size: 13px;
+      line-height: 21px;
+      color: #d4d4d4;
+      white-space: pre;
+    }
+
+    .kw {
+      color: #569cd6;
+    }
+
+    .fn {
+      color: #dcdcaa;
+    }
+
+    .str {
+      color: #ce9178;
+    }
+
+    .cmt {
+      color: #6a9955;
+    }
+
+    .num {
+      color: #b5cea8;
+    }
+
+    .tp {
+      color: #4ec9b0;
+    }
+
+    .vs-terminal {
+      height: 160px;
+      border-top: 1px solid #3c3c3c;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      background: #1e1e1e;
+    }
+
+    .vs-terminal-tabs {
+      background: #252526;
+      border-bottom: 1px solid #3c3c3c;
+      display: flex;
+      padding: 0 8px;
+      flex-shrink: 0;
+    }
+
+    .vs-terminal-tab {
+      padding: 5px 14px;
+      font-size: 11px;
+      color: #ccc;
+      border-bottom: 1px solid #007acc;
+    }
+
+    .vs-terminal-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 14px;
+      font-size: 12px;
+      color: #ccc;
+      line-height: 1.6;
+      font-family: 'Menlo', 'Consolas', monospace;
+    }
+
+    .vs-terminal-body .t-prompt {
+      color: #4ec9b0;
+    }
+
+    .vs-terminal-body .t-key {
+      color: #9cdcfe;
+    }
+
+    .vs-terminal-body .t-val {
+      color: #ce9178;
+    }
+
+    .vs-terminal-body .t-dim {
+      color: #6a9955;
+    }
+
+    .vs-terminal-body .t-warn {
+      color: #ffbd2e;
+    }
+
+    .vs-terminal-body .t-ok {
+      color: #4ec9b0;
+    }
+
+    .vs-statusbar {
+      background: #007acc;
+      padding: 2px 12px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 11px;
+      color: #fff;
+      flex-shrink: 0;
+    }
+
+    .vs-statusbar span {
+      opacity: .85;
+    }
+
+    /* ── Tiny cards for spectator view ── */
+    .opp-tiny-cards {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1px;
+      max-width: 150px;
+      padding: 2px 0;
+    }
+
+    .card-tiny {
+      width: 22px;
+      height: 32px;
+      border-radius: 2px;
+      border: 1px solid #ccc;
+      background: #fff;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 1px 2px;
+      font-size: 7px;
+      font-weight: 700;
+      overflow: hidden;
+      line-height: 1.1;
+    }
+
+    .card-tiny.red {
+      color: #cc0000;
+    }
+
+    .card-tiny.black-suit {
+      color: #111;
+    }
+
+    .card-tiny.joker-bw {
+      background: #222;
+      color: #fff;
+      border-color: #555;
+    }
+
+    .card-tiny.joker-color {
+      background: linear-gradient(135deg, #e74c3c 25%, #f1c40f 50%, #2ecc71 75%);
+    }
+
+    .opponent-box.spectator-view {
+      max-width: 160px;
+    }
+
+    .finished-badge {
+      position: absolute;
+      top: -6px;
+      left: -6px;
+      background: #4ec9b0;
+      color: #1e1e1e;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 1px 4px;
+    }
+
+    .pl-finished {
+      color: #4ec9b0;
+      font-weight: 700;
+      font-size: 9px;
+    }
+
+    /* ── One-card challenge banner + toast slot ── */
+    #challenge-area {
+      position: relative;
+      flex-shrink: 0;
+      height: 34px;
+    }
+
+    #challenge-banner,
+    #toast {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    #challenge-banner {
+      display: none;
+      color: #9d9d9d;
+      letter-spacing: 0.02em;
+    }
+
+    #challenge-banner.show {
+      display: flex;
+    }
+
+    #challenge-key-box {
+      display: inline-block;
+      background: #4ec9b0;
+      color: #1e1e1e;
+      font-weight: 900;
+      font-size: 15px;
+      padding: 1px 10px;
+      margin: 0 5px;
+      letter-spacing: 0.05em;
+    }
+
+    #toast {
+      display: none;
+      font-weight: 600;
+      color: #d4d4d4;
+      background: rgba(37, 37, 38, 0.96);
+      border: 1px solid #3c3c3c;
+      padding: 5px 20px;
+      z-index: 200;
+    }
+
+    #toast.green {
+      background: rgba(78, 201, 176, 0.12);
+      border-color: #4ec9b0;
+      color: #4ec9b0;
+    }
+
+    #toast.red {
+      background: rgba(244, 135, 113, 0.12);
+      border-color: #f48771;
+      color: #f48771;
+    }
+
+    /* ── Panel toggle (Escape) ── */
+    .game-panel-hidden #game-overlay,
+    .game-panel-hidden #right-panel {
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="title-bar">
+    <span class="file-name">통합 문서1 - Microsoft Excel</span>
+    <div class="win-controls">
+      <div class="win-btn">_</div>
+      <div class="win-btn">&#9633;</div>
+      <div class="win-btn">&#10005;</div>
+    </div>
+  </div>
+
+  <div id="ribbon">
+    <div id="ribbon-tabs">
+      <div class="rtab active">홈</div>
+      <div class="rtab">삽입</div>
+      <div class="rtab">페이지 레이아웃</div>
+      <div class="rtab">수식</div>
+      <div class="rtab">데이터</div>
+      <div class="rtab">검토</div>
+      <div class="rtab">보기</div>
+    </div>
+    <div id="ribbon-content">
+      <div class="rgroup">
+        <button class="rbtn">붙여넣기</button><button class="rbtn">잘라내기</button><button class="rbtn">복사</button>
+      </div>
+      <div class="rgroup">
+        <button class="rbtn">굵게</button><button class="rbtn">기울임꼴</button><button class="rbtn">밑줄</button>
+      </div>
+      <div class="rgroup">
+        <button class="rbtn">자동 합계</button><button class="rbtn">정렬 및 필터</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="formula-bar">
+    <input id="cell-ref" type="text" value="A1" readonly>
+    <span id="formula-sep">fx</span>
+    <input id="formula-input" type="text" value="" readonly tabindex="-1">
+  </div>
+
+  <div id="main">
+    <div id="sheet-area">
+      <div id="col-header"></div>
+      <div id="sheet-body">
+        <div id="row-header"></div>
+        <div id="grid-lines"></div>
+      </div>
+
+      <!-- Game overlay -->
+      <div id="game-overlay">
+        <div id="game-status-bar">
+          <span id="turn-indicator">-</span>
+          <span id="penalty-badge"></span>
+        </div>
+
+        <div id="opponents-area"></div>
+
+        <div id="center-area">
+          <div id="deck-pile">
+            <div id="deck-stack"></div>
+            <div id="deck-count-label">덱: -- 장</div>
+          </div>
+          <div id="field-pile">
+            <div id="field-card-el"></div>
+            <div id="field-label">필드 카드</div>
+          </div>
+        </div>
+
+        <div id="challenge-area">
+          <div id="challenge-banner">
+            <span id="challenge-name"></span> 님이 원카드!
+            <span id="challenge-key-box"></span>
+            키를 눌러주세요
+          </div>
+          <div id="toast"></div>
+        </div>
+
+        <div id="my-area">
+          <div id="my-label">내 패</div>
+          <div id="my-hand"></div>
+          <div id="action-buttons">
+            <button class="action-btn primary" id="btn-play" disabled>내기</button>
+            <button class="action-btn danger" id="btn-draw" disabled>드로우</button>
+            <button class="action-btn" id="btn-sort">정렬</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="sheet-tabs">
+        <div class="stab active">Sheet1</div>
+        <div class="stab">Sheet2</div>
+      </div>
+    </div>
+
+    <div id="right-panel">
+      <div id="hud-panel">
+        <div class="hud-title">게임 정보</div>
+        <div class="hud-row"><span>현재 턴</span><span class="hud-val" id="hud-turn">-</span></div>
+        <div class="hud-row"><span>진행 방향</span><span class="hud-val" id="hud-dir">-</span></div>
+        <div class="hud-row"><span>덱</span><span class="hud-val" id="hud-deck">-</span></div>
+        <div class="hud-row" id="hud-penalty-row">
+          <span>누적 페널티</span><span class="hud-val" id="hud-penalty-val">-</span>
+        </div>
+        <div class="hud-row" id="hud-seven-row" style="display:none;">
+          <span>선언 무늬</span><span class="hud-val" id="hud-seven-val">-</span>
+        </div>
+      </div>
+      <div id="player-list">
+        <div class="pl-title">플레이어</div>
+        <div id="pl-items"></div>
+      </div>
+      <div id="chat-panel">
+        <div id="chat-header">채팅</div>
+        <div id="chat-log"></div>
+        <div id="chat-input-row">
+          <input id="chat-input" type="text" placeholder="메시지..." maxlength="200" autocomplete="off">
+          <button id="chat-send">전송</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VSCode ESC screen -->
+  <div id="vscode-screen">
+    <div class="vs-titlebar">
+      <div class="vs-dot red"></div>
+      <div class="vs-dot yel"></div>
+      <div class="vs-dot grn"></div>
+      <span class="vs-title">cardEngine.js — workspace</span>
+    </div>
+    <div class="vs-body">
+      <div class="vs-sidebar">
+        <div class="vs-sidebar-title">Explorer</div>
+        <div class="vs-file"><span class="vs-file-icon">v</span> src</div>
+        <div class="vs-file active" style="padding-left:42px;"><span class="vs-file-icon">JS</span> cardEngine.js</div>
+        <div class="vs-file" style="padding-left:42px;"><span class="vs-file-icon">JS</span> validator.js</div>
+        <div class="vs-file" style="padding-left:42px;"><span class="vs-file-icon">JS</span> socket.js</div>
+        <div class="vs-file"><span class="vs-file-icon">v</span> tests</div>
+        <div class="vs-file" style="padding-left:42px;"><span class="vs-file-icon">JS</span> engine.test.js</div>
+        <div class="vs-file"><span class="vs-file-icon">{}</span> package.json</div>
+      </div>
+      <div class="vs-editor">
+        <div class="vs-tabs">
+          <div class="vs-tab active">cardEngine.js</div>
+          <div class="vs-tab">validator.js</div>
+        </div>
+        <div class="vs-code">
+          <div class="vs-gutter" id="vs-gutter"></div>
+          <div class="vs-lines" id="vs-lines"></div>
+        </div>
+        <div class="vs-terminal">
+          <div class="vs-terminal-tabs">
+            <div class="vs-terminal-tab">TERMINAL</div>
+          </div>
+          <div class="vs-terminal-body" id="vs-terminal-body"></div>
+        </div>
+      </div>
+    </div>
+    <div class="vs-statusbar">
+      <span>main</span><span>JavaScript</span><span>UTF-8</span><span>Ln 1, Col 1</span>
+    </div>
+  </div>
+
+
+  <!-- Login -->
+  <div class="overlay" id="login-overlay">
+    <div class="dialog">
+      <h2>원카드 - 닉네임 입력</h2>
+      <input id="name-input" type="text" placeholder="닉네임 (최대 12자)" maxlength="12" autofocus>
+      <button id="join-btn">입장</button>
+      <div id="join-error"></div>
+    </div>
+  </div>
+
+  <!-- Lobby -->
+  <div class="overlay hidden" id="lobby-overlay">
+    <div class="dialog">
+      <h2>대기실</h2>
+      <div id="lobby-list"></div>
+      <div class="dialog-row">
+        <button id="start-btn" disabled>게임 시작</button>
+        <span id="lobby-hint">2명 이상 필요</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Result -->
+  <div class="overlay hidden" id="result-overlay">
+    <div class="dialog" id="result-dialog">
+      <h2>게임 종료</h2>
+      <div id="result-winner" class="result-winner"></div>
+      <table id="result-table">
+        <thead>
+          <tr>
+            <th>순위</th>
+            <th>이름</th>
+            <th>남은 패</th>
+          </tr>
+        </thead>
+        <tbody id="result-body"></tbody>
+      </table>
+      <div id="rematch-status"></div>
+      <button id="rematch-btn">다시하기 투표</button>
+    </div>
+  </div>
+
+  <!-- Suit picker -->
+  <div class="overlay hidden" id="suit-overlay">
+    <div class="dialog">
+      <h2>무늬 선택</h2>
+      <p style="font-size:11px;color:#555;margin-bottom:14px;">7을 냈습니다. 다음에 낼 무늬를 선택하세요.</p>
+      <div class="suit-pick-row">
+        <button class="suit-pick-btn black-suit" data-suit="spades">♠<br>스페이드</button>
+        <button class="suit-pick-btn red" data-suit="hearts">♥<br>하트</button>
+        <button class="suit-pick-btn red" data-suit="diamonds">♦<br>다이아</button>
+        <button class="suit-pick-btn black-suit" data-suit="clubs">♣<br>클로버</button>
+      </div>
+    </div>
+  </div>
+
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    // ── Constants ──────────────────────────────────────────────────────────────────
+    const SUIT_SYMBOL = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
+    const SUIT_ORDER = { spades: 0, hearts: 1, diamonds: 2, clubs: 3 };
+    const RANK_ORDER = { 'A': 14, 'K': 13, 'Q': 12, 'J': 11, '10': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2, 'BW': 15, 'COLOR': 16 };
+
+    // ── State ──────────────────────────────────────────────────────────────────────
+    const socket = io();
+    let myId = null;
+    let phase = 'login';
+    let gs = null;           // game state from server
+    let myHand = [];         // my current hand
+    let selectedIds = new Set();
+    let sortedHand = false;
+    let toastTimer = null;
+    let myName = '';
+    let escActive = false;
+    let oneCardChallenge = null;
+
+    // ── VSCode fake code ───────────────────────────────────────────────────────────
+    const fakeCode = `<span class="cmt">// cardEngine.js — core game logic</span>
+<span class="cmt">// Last modified: 2025-06-09</span>
+
+<span class="kw">import</span> { <span class="tp">EventEmitter</span> } <span class="kw">from</span> <span class="str">'events'</span>;
+
+<span class="kw">const</span> SUITS  = [<span class="str">'spades'</span>, <span class="str">'hearts'</span>, <span class="str">'diamonds'</span>, <span class="str">'clubs'</span>];
+<span class="kw">const</span> RANKS  = [<span class="str">'A'</span>,<span class="str">'2'</span>,<span class="str">'3'</span>,<span class="str">'4'</span>,<span class="str">'5'</span>,<span class="str">'6'</span>,<span class="str">'7'</span>,<span class="str">'8'</span>,<span class="str">'9'</span>,<span class="str">'10'</span>,<span class="str">'J'</span>,<span class="str">'Q'</span>,<span class="str">'K'</span>];
+
+<span class="kw">export function</span> <span class="fn">penaltyOf</span>(card: <span class="tp">Card</span>): <span class="tp">number</span> {
+  <span class="kw">if</span> (card.rank === <span class="str">'A'</span> && card.suit === <span class="str">'spades'</span>) <span class="kw">return</span> <span class="num">5</span>;
+  <span class="kw">if</span> (card.rank === <span class="str">'A'</span>) <span class="kw">return</span> <span class="num">3</span>;
+  <span class="kw">if</span> (card.rank === <span class="str">'2'</span>) <span class="kw">return</span> <span class="num">2</span>;
+  <span class="kw">if</span> (card.rank === <span class="str">'BW'</span>) <span class="kw">return</span> <span class="num">5</span>;
+  <span class="kw">if</span> (card.rank === <span class="str">'COLOR'</span>) <span class="kw">return</span> <span class="num">10</span>;
+  <span class="kw">return</span> <span class="num">0</span>;
+}
+
+<span class="kw">export function</span> <span class="fn">canDefend</span>(card: <span class="tp">Card</span>, field: <span class="tp">Card</span>): <span class="tp">boolean</span> {
+  <span class="kw">const</span> { suit: fs, rank: fr } = field;
+  <span class="kw">if</span> (fr === <span class="str">'2'</span>) {
+    <span class="kw">if</span> (card.rank === <span class="str">'2'</span>) <span class="kw">return true</span>;
+    <span class="kw">if</span> (card.rank === <span class="str">'A'</span> && card.suit === fs) <span class="kw">return true</span>;
+    <span class="kw">return false</span>;
+  }
+  <span class="kw">return false</span>;
+}
+
+<span class="kw">export function</span> <span class="fn">createDeck</span>(): <span class="tp">Card</span>[] {
+  <span class="kw">const</span> deck: <span class="tp">Card</span>[] = [];
+  <span class="kw">for</span> (<span class="kw">const</span> suit <span class="kw">of</span> SUITS)
+    <span class="kw">for</span> (<span class="kw">const</span> rank <span class="kw">of</span> RANKS)
+      deck.push({ id: <span class="str">\`\${suit}_\${rank}\`</span>, suit, rank });
+  deck.push({ id: <span class="str">'joker_BW'</span>, suit: <span class="kw">null</span>, rank: <span class="str">'BW'</span> });
+  deck.push({ id: <span class="str">'joker_COLOR'</span>, suit: <span class="kw">null</span>, rank: <span class="str">'COLOR'</span> });
+  <span class="kw">return</span> deck;
+}`;
+
+    function t(cls, txt) { return `<span class="${cls}">${txt}</span>`; }
+
+    function buildVsCode() {
+      const lines = fakeCode.split('\n');
+      document.getElementById('vs-gutter').innerHTML = lines.map((_, i) => i + 1).join('\n');
+      document.getElementById('vs-lines').innerHTML = lines.join('\n');
+    }
+
+    function updateVsTerminal() {
+      const el = document.getElementById('vs-terminal-body');
+      if (!el) return;
+      const SUIT_SYM = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
+      const lines = [];
+      lines.push(`${t('t-prompt', '>')} onecard status`);
+      if (!myName) { lines.push(t('t-dim', '  not connected')); el.innerHTML = lines.join('<br>'); return; }
+      lines.push(`  ${t('t-key', 'player')}: ${t('t-val', myName)}`);
+      if (!gs || phase !== 'playing') {
+        lines.push(`  ${t('t-dim', '// lobby or waiting')}`);
+        el.innerHTML = lines.join('<br>'); return;
+      }
+      const fc = gs.fieldCard;
+      const fcStr = fc ? (fc.rank === 'BW' ? 'Joker(BW)' : fc.rank === 'COLOR' ? 'Joker(COLOR)' : `${fc.rank}${SUIT_SYM[fc.suit] || ''}`) : '—';
+      lines.push(`  ${t('t-key', 'field')}:  ${t('t-val', fcStr)}`);
+      if (gs.sevenSuit) lines.push(`  ${t('t-key', 'suit lock')}: ${t('t-warn', SUIT_SYM[gs.sevenSuit] + ' ' + gs.sevenSuit)}`);
+      if (gs.penaltyActive) lines.push(`  ${t('t-key', 'penalty')}: ${t('t-warn', '+' + gs.penaltyStack + ' 장 누적')}`);
+      lines.push(`  ${t('t-key', 'direction')}: ${t('t-val', gs.direction === 1 ? '→ 정방향' : '← 역방향')}`);
+      if (gs.isSpectator) lines.push(`  ${t('t-ok', '[관전 중]')}`);
+      lines.push(`  ${t('t-dim', '──────────────────────')}`);
+      (gs.playerInfo || []).forEach(p => {
+        const isMe = p.id === myId;
+        const isCur = p.id === gs.currentPlayerId;
+        const tag = isCur ? t('t-ok', '▶') : ' ';
+        const name = t(isMe ? 't-ok' : 't-key', p.name + (isMe ? ' (나)' : ''));
+        let info;
+        if (p.isFinished) {
+          const r = (gs.rankings || []).find(r => r.id === p.id);
+          info = t('t-ok', (r ? `${r.rank}위` : '완주') + ' ✓');
+        } else {
+          const cnt = t('t-val', p.cardCount + '장');
+          const one = p.oneCardDeclared ? t('t-ok', ' ★원카드') : (p.cardCount === 1 ? t('t-warn', ' !미선언') : '');
+          info = cnt + one;
+        }
+        lines.push(`  ${tag} ${name}: ${info}`);
+        // If spectating, show their actual hand
+        if (gs.isSpectator && gs.allHands && gs.allHands[p.id] && !isMe) {
+          const hand = gs.allHands[p.id];
+          if (hand.length) {
+            const handStr = hand.map(c => {
+              if (c.rank === 'BW') return t('t-dim', '[BW]');
+              if (c.rank === 'COLOR') return t('t-warn', '[CLR]');
+              const sym = SUIT_SYM[c.suit] || '';
+              const col = (c.suit === 'hearts' || c.suit === 'diamonds') ? 't-warn' : 't-val';
+              return t(col, `${c.rank}${sym}`);
+            }).join(' ');
+            lines.push(`       ${t('t-dim', '└')} ${handStr}`);
+          }
+        }
+      });
+      if (myHand.length) {
+        lines.push(`  ${t('t-dim', '──────────────────────')}`);
+        const handStr = myHand.map(c => {
+          if (c.rank === 'BW') return t('t-dim', '[BW조커]');
+          if (c.rank === 'COLOR') return t('t-warn', '[컬러조커]');
+          const sym = SUIT_SYM[c.suit] || '';
+          const col = (c.suit === 'hearts' || c.suit === 'diamonds') ? 't-warn' : 't-val';
+          return t(col, `${c.rank}${sym}`);
+        }).join('  ');
+        lines.push(`  ${t('t-key', 'my hand')}: ${handStr}`);
+      }
+      el.innerHTML = lines.join('<br>');
+    }
+
+    // ── DOM refs ───────────────────────────────────────────────────────────────────
+    const loginOverlay = document.getElementById('login-overlay');
+    const lobbyOverlay = document.getElementById('lobby-overlay');
+    const resultOverlay = document.getElementById('result-overlay');
+    const gameOverlay = document.getElementById('game-overlay');
+    const turnIndicator = document.getElementById('turn-indicator');
+    const penaltyBadge = document.getElementById('penalty-badge');
+    const opponentsArea = document.getElementById('opponents-area');
+    const fieldCardEl = document.getElementById('field-card-el');
+    const deckCountLabel = document.getElementById('deck-count-label');
+    const deckStack = document.getElementById('deck-stack');
+    const myHandEl = document.getElementById('my-hand');
+    const btnPlay = document.getElementById('btn-play');
+    const btnDraw = document.getElementById('btn-draw');
+    const btnSort = document.getElementById('btn-sort');
+    const chatLog = document.getElementById('chat-log');
+    const chatInput = document.getElementById('chat-input');
+    const hudTurn = document.getElementById('hud-turn');
+    const hudDir = document.getElementById('hud-dir');
+    const hudDeck = document.getElementById('hud-deck');
+    const hudPenaltyRow = document.getElementById('hud-penalty-row');
+    const hudPenaltyVal = document.getElementById('hud-penalty-val');
+    const plItems = document.getElementById('pl-items');
+
+    // ── Spreadsheet background ─────────────────────────────────────────────────────
+    function buildSheet(rowHdr, gridEl, colHdr, rows, cols) {
+      if (colHdr) {
+        colHdr.innerHTML = '';
+        for (let c = 0; c < cols; c++) {
+          const d = document.createElement('div'); d.className = 'col-cell';
+          d.textContent = String.fromCharCode(65 + c); colHdr.appendChild(d);
+        }
+      }
+      if (rowHdr) {
+        rowHdr.innerHTML = '';
+        for (let r = 1; r <= rows; r++) {
+          const d = document.createElement('div'); d.className = 'row-cell'; d.textContent = r; rowHdr.appendChild(d);
+        }
+      }
+      if (gridEl) {
+        gridEl.innerHTML = '';
+        for (let r = 0; r < rows; r++) {
+          const row = document.createElement('div'); row.className = 'grid-row';
+          for (let c = 0; c < cols; c++) {
+            const cell = document.createElement('div'); cell.className = 'grid-cell'; row.appendChild(cell);
+          }
+          gridEl.appendChild(row);
+        }
+      }
+    }
+    buildSheet(document.getElementById('row-header'), document.getElementById('grid-lines'), document.getElementById('col-header'), 50, 10);
+
+    // ── Card creation ──────────────────────────────────────────────────────────────
+    function createCardEl(card, opts = {}) {
+      const el = document.createElement('div');
+      el.className = 'card';
+
+      if (card === 'back') {
+        el.style.background = 'repeating-linear-gradient(45deg,#1a4a8a,#1a4a8a 4px,#2255aa 4px,#2255aa 8px)';
+        el.style.borderColor = '#7a9';
+        return el;
+      }
+
+      if (card.rank === 'BW') {
+        el.classList.add('joker-bw');
+        el.innerHTML = `<div class="card-tl">🃏<br>BW</div><div class="card-br">🃏<br>BW</div>`;
+        return el;
+      }
+      if (card.rank === 'COLOR') {
+        el.classList.add('joker-color');
+        el.innerHTML = `<div class="card-tl">🃏<br>CLR</div><div class="card-br">🃏<br>CLR</div>`;
+        return el;
+      }
+
+      const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
+      el.classList.add(isRed ? 'red' : 'black-suit');
+      const sym = SUIT_SYMBOL[card.suit];
+      el.innerHTML = `<div class="card-tl">${card.rank}<br>${sym}</div><div class="card-center">${sym}</div><div class="card-br">${card.rank}<br>${sym}</div>`;
+      return el;
+    }
+
+    // ── Tiny card for spectator view ──────────────────────────────────────────────
+    function createTinyCard(card) {
+      const el = document.createElement('div');
+      if (card.rank === 'BW') {
+        el.className = 'card-tiny joker-bw'; el.textContent = 'BW'; return el;
+      }
+      if (card.rank === 'COLOR') {
+        el.className = 'card-tiny joker-color'; el.textContent = 'CL'; return el;
+      }
+      const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
+      el.className = 'card-tiny ' + (isRed ? 'red' : 'black-suit');
+      el.innerHTML = `${card.rank}<br>${SUIT_SYMBOL[card.suit] || ''}`;
+      return el;
+    }
+
+    // ── Can-play check (client-side) ──────────────────────────────────────────────
+    function suitIsBlack(suit) { return suit === 'spades' || suit === 'clubs'; }
+
+    function clientCanDefend(card, fieldCard) {
+      const { suit: fs, rank: fr } = fieldCard;
+      if (fr === 'A' && fs !== 'spades') {
+        if (card.rank === 'A') return true;
+        if (card.rank === '2' && card.suit === fs) return true;
+        if (card.rank === 'COLOR' && !suitIsBlack(fs)) return true;
+        if (card.rank === 'BW' && suitIsBlack(fs)) return true;
+        return false;
+      }
+      if (fr === '2') {
+        if (card.rank === '2') return true;
+        if (card.rank === 'A' && card.suit === fs) return true;
+        if (card.rank === 'COLOR' && !suitIsBlack(fs)) return true;
+        if (card.rank === 'BW' && suitIsBlack(fs)) return true;
+        return false;
+      }
+      if (fr === 'BW') { return (card.rank === 'A' && card.suit === 'spades') || card.rank === 'COLOR'; }
+      if (fr === 'A' && fs === 'spades') return card.rank === 'BW';
+      if (fr === 'COLOR') return false;
+      return false;
+    }
+
+    function clientCanPlayNormal(card, fieldCard, extraTurnActive, extraTurnSuit, sevenSuit) {
+      if (extraTurnActive) {
+        if (card.rank === 'K') return true;
+        if (card.suit === extraTurnSuit) return true;
+        if (card.rank === 'BW') return suitIsBlack(extraTurnSuit);
+        if (card.rank === 'COLOR') return !suitIsBlack(extraTurnSuit);
+        return false;
+      }
+      if (sevenSuit) return card.suit === sevenSuit || card.rank === '7';
+      if (!fieldCard) return true;
+      if (fieldCard.rank === 'BW') return card.rank === 'BW' || (card.suit !== null && suitIsBlack(card.suit));
+      if (fieldCard.rank === 'COLOR') return card.rank === 'COLOR' || (card.suit !== null && !suitIsBlack(card.suit));
+      if (card.rank === 'BW') return suitIsBlack(fieldCard.suit);
+      if (card.rank === 'COLOR') return !suitIsBlack(fieldCard.suit);
+      return card.suit === fieldCard.suit || card.rank === fieldCard.rank;
+    }
+
+    function cardIsPlayable(card) {
+      if (!gs) return false;
+      if (gs.penaltyActive && gs.penaltyStack > 0) return clientCanDefend(card, gs.fieldCard);
+      return clientCanPlayNormal(card, gs.fieldCard, gs.extraTurnActive, gs.extraTurnSuit, gs.sevenSuit);
+    }
+
+    // ── Sort hand ─────────────────────────────────────────────────────────────────
+    function sortHand(hand) {
+      return [...hand].sort((a, b) => {
+        const sa = a.suit === null ? 99 : (SUIT_ORDER[a.suit] ?? 99);
+        const sb = b.suit === null ? 99 : (SUIT_ORDER[b.suit] ?? 99);
+        if (sa !== sb) return sa - sb;
+        return (RANK_ORDER[a.rank] ?? 0) - (RANK_ORDER[b.rank] ?? 0);
+      });
+    }
+
+    // ── Render my hand ─────────────────────────────────────────────────────────────
+    function renderHand() {
+      myHandEl.innerHTML = '';
+      const isMyTurn = gs && gs.currentPlayerId === myId;
+      const displayHand = sortedHand ? sortHand(myHand) : myHand;
+
+      displayHand.forEach(card => {
+        const el = createCardEl(card);
+        const playable = cardIsPlayable(card);
+
+        if (isMyTurn && !gs.hasPlayedThisTurn || (gs?.extraTurnActive && isMyTurn)) {
+          if (playable) el.classList.add('can-play');
+          else el.classList.add('cannot-play');
+        }
+        if (!isMyTurn) { el.classList.add('not-my-turn'); el.classList.add('cannot-play'); }
+        if (selectedIds.has(card.id)) el.classList.add('selected');
+
+        el.addEventListener('click', () => {
+          if (!isMyTurn) return;
+          if (gs.hasPlayedThisTurn && !gs.extraTurnActive) return;
+          if (!cardIsPlayable(card)) return;
+          toggleSelect(card);
+        });
+        myHandEl.appendChild(el);
+      });
+    }
+
+    function toggleSelect(card) {
+      if (selectedIds.has(card.id)) {
+        selectedIds.delete(card.id);
+      } else {
+        // All selected must be same rank (joker: alone)
+        if (selectedIds.size > 0) {
+          const existing = myHand.find(c => selectedIds.has(c.id));
+          if (existing && existing.rank !== card.rank) selectedIds.clear();
+          if (card.rank === 'BW' || card.rank === 'COLOR') selectedIds.clear();
+        }
+        selectedIds.add(card.id);
+      }
+      renderHand();
+      updateButtons();
+    }
+
+    // ── Render opponents ──────────────────────────────────────────────────────────
+    function renderOpponents() {
+      opponentsArea.innerHTML = '';
+      if (!gs) return;
+      gs.playerInfo.filter(p => p.id !== myId).forEach(p => {
+        const box = document.createElement('div');
+        box.className = 'opponent-box';
+        if (p.id === gs.currentPlayerId) box.classList.add('my-turn-indicator');
+        if (gs.isSpectator) box.classList.add('spectator-view');
+
+        // Finished badge
+        if (p.isFinished) {
+          const rankEntry = (gs.rankings || []).find(r => r.id === p.id);
+          const badge = document.createElement('div');
+          badge.className = 'finished-badge';
+          badge.textContent = rankEntry ? `${rankEntry.rank}위` : '완주';
+          box.appendChild(badge);
+        }
+
+        // One-card badge
+        if (!p.isFinished && p.cardCount === 1) {
+          const badge = document.createElement('div');
+          badge.className = 'one-card-badge' + (p.oneCardDeclared ? ' declared' : '');
+          badge.textContent = p.oneCardDeclared ? '원카드' : '!';
+          box.appendChild(badge);
+        }
+
+        const nameEl = document.createElement('div'); nameEl.className = 'opp-name'; nameEl.textContent = p.name;
+        const countEl = document.createElement('div'); countEl.className = 'opp-count';
+        countEl.textContent = p.isFinished ? '완주' : `${p.cardCount}장`;
+
+        // Cards area
+        if (gs.isSpectator && gs.allHands && gs.allHands[p.id]) {
+          const hand = gs.allHands[p.id];
+          const cardsDiv = document.createElement('div');
+          cardsDiv.className = 'opp-tiny-cards';
+          hand.forEach(card => cardsDiv.appendChild(createTinyCard(card)));
+          box.appendChild(cardsDiv);
+        } else {
+          const cardsDiv = document.createElement('div');
+          cardsDiv.className = 'opp-cards';
+          const show = Math.min(p.cardCount, 3);
+          for (let i = 0; i < show; i++) {
+            const bc = document.createElement('div');
+            bc.className = 'opp-card-back';
+            bc.style.left = `${i * 8}px`;
+            bc.style.zIndex = i;
+            cardsDiv.appendChild(bc);
+          }
+          box.appendChild(cardsDiv);
+        }
+
+        box.appendChild(nameEl);
+        box.appendChild(countEl);
+        opponentsArea.appendChild(box);
+      });
+    }
+
+    // ── Render field & deck ────────────────────────────────────────────────────────
+    function renderCenter() {
+      if (!gs) return;
+      fieldCardEl.innerHTML = '';
+      if (gs.fieldCard) fieldCardEl.appendChild(createCardEl(gs.fieldCard));
+
+      deckStack.innerHTML = '';
+      const show = Math.min(Math.ceil(gs.deckCount / 10), 3);
+      for (let i = 0; i < show; i++) {
+        const bc = document.createElement('div');
+        bc.className = 'deck-card';
+        bc.style.top = `${i * 2}px`;
+        bc.style.left = `${i * 2}px`;
+        deckStack.appendChild(bc);
+      }
+      deckCountLabel.textContent = `덱: ${gs.deckCount}장`;
+    }
+
+    // ── Render HUD ────────────────────────────────────────────────────────────────
+    function renderHud() {
+      if (!gs) return;
+      const cur = gs.playerInfo.find(p => p.id === gs.currentPlayerId);
+      hudTurn.textContent = cur ? (cur.id === myId ? '내 차례' : cur.name) : '-';
+      hudDir.textContent = gs.direction === 1 ? '시계 방향' : '반시계 방향';
+      hudDeck.textContent = `${gs.deckCount}장`;
+
+      if (gs.penaltyActive && gs.penaltyStack > 0) {
+        hudPenaltyRow.style.display = 'flex';
+        hudPenaltyVal.textContent = `${gs.penaltyStack}장`;
+        penaltyBadge.textContent = `페널티 ${gs.penaltyStack}장`;
+        penaltyBadge.classList.add('show');
+      } else {
+        hudPenaltyRow.style.display = 'none';
+        penaltyBadge.classList.remove('show');
+      }
+
+      const sevenRow = document.getElementById('hud-seven-row');
+      const sevenVal = document.getElementById('hud-seven-val');
+      if (gs.sevenSuit) {
+        sevenRow.style.display = 'flex';
+        sevenVal.textContent = SUIT_SYMBOL[gs.sevenSuit] + ' ' + { spades: '스페이드', hearts: '하트', diamonds: '다이아', clubs: '클로버' }[gs.sevenSuit];
+        sevenVal.style.color = (gs.sevenSuit === 'hearts' || gs.sevenSuit === 'diamonds') ? '#cc0000' : '#111';
+      } else {
+        sevenRow.style.display = 'none';
+      }
+
+      // Player list
+      plItems.innerHTML = '';
+      gs.playerInfo.forEach(p => {
+        const div = document.createElement('div'); div.className = 'pl-item';
+        const left = document.createElement('div'); left.className = 'pl-left';
+        const dot = document.createElement('div');
+        dot.className = `pl-dot ${p.id === gs.currentPlayerId ? 'turn' : 'other'}`;
+        const name = document.createElement('span'); name.className = 'pl-name'; name.textContent = p.id === myId ? `${p.name} (나)` : p.name;
+        left.appendChild(dot); left.appendChild(name);
+
+        const right = document.createElement('div'); right.className = 'pl-right';
+        if (p.isFinished) {
+          const rankEntry = (gs.rankings || []).find(r => r.id === p.id);
+          right.textContent = rankEntry ? `${rankEntry.rank}위` : '';
+          const badge = document.createElement('span'); badge.className = 'pl-finished'; badge.textContent = '완주';
+          right.appendChild(badge);
+        } else {
+          right.textContent = `${p.cardCount}장`;
+          if (p.cardCount === 1) {
+            const badge = document.createElement('span');
+            badge.textContent = p.oneCardDeclared ? '원카드' : '!';
+            badge.className = p.oneCardDeclared ? 'pl-one-declared' : 'pl-one-card';
+            right.appendChild(badge);
+          }
+        }
+
+        div.appendChild(left); div.appendChild(right);
+        plItems.appendChild(div);
+      });
+
+      // Formula bar context
+      const formulaMap = {
+        true: '=IF(HAND.COUNT>0,"PLAY_CARD()","DRAW_CARD()")',
+      };
+      document.getElementById('formula-input').value = gs.currentPlayerId === myId
+        ? '=IF(HAND.COUNT>0,"PLAY_CARD()","DRAW_CARD()")'
+        : `=WAIT("${cur?.name || ''}")`;
+
+      // Turn indicator
+      const isMyTurn = gs.currentPlayerId === myId;
+      turnIndicator.textContent = isMyTurn ? '내 차례' : (cur ? `${cur.name} 차례` : '-');
+      turnIndicator.className = isMyTurn ? 'my-turn' : '';
+    }
+
+    // ── Update buttons ─────────────────────────────────────────────────────────────
+    function updateButtons() {
+      if (!gs || phase !== 'playing') {
+        btnPlay.disabled = btnDraw.disabled = true;
+        return;
+      }
+      if (gs.isSpectator) {
+        btnPlay.disabled = btnDraw.disabled = true;
+        return;
+      }
+      const isMyTurn = gs.currentPlayerId === myId;
+      const canPlayMore = isMyTurn && (gs.extraTurnActive || !gs.hasPlayedThisTurn);
+
+      const sel = myHand.filter(c => selectedIds.has(c.id));
+      const selValid = sel.length > 0 && sel.every(c => cardIsPlayable(c));
+      btnPlay.disabled = !(isMyTurn && canPlayMore && selValid);
+      btnDraw.disabled = !(isMyTurn && (!gs.hasPlayedThisTurn || gs.extraTurnActive));
+    }
+
+    // ── Challenge banner ──────────────────────────────────────────────────────────
+    function renderChallengeBanner() {
+      const banner = document.getElementById('challenge-banner');
+      if (!oneCardChallenge) { banner.classList.remove('show'); return; }
+      document.getElementById('challenge-name').textContent = oneCardChallenge.playerName;
+      document.getElementById('challenge-key-box').textContent = oneCardChallenge.requiredKey.toUpperCase();
+      banner.classList.add('show');
+    }
+
+    // ── Full render ───────────────────────────────────────────────────────────────
+    function renderAll() {
+      renderOpponents();
+      renderCenter();
+      renderHud();
+      renderHand();
+      updateButtons();
+      renderChallengeBanner();
+      document.getElementById('my-label').textContent = gs?.isSpectator ? '관전 중 (내 완주패)' : '내 패';
+      const suitOverlay = document.getElementById('suit-overlay');
+      if (gs && gs.waitingSuitChange && gs.currentPlayerId === myId) {
+        suitOverlay.classList.remove('hidden');
+      } else {
+        suitOverlay.classList.add('hidden');
+      }
+    }
+
+    // ── ESC screen (game data in background grid) ──────────────────────────────────
+    function renderEscScreen() {
+      const gridEl = document.getElementById('grid-lines');
+      const gridRows = gridEl.querySelectorAll('.grid-row');
+      gridRows.forEach(row => {
+        row.querySelectorAll('.grid-cell').forEach(cell => {
+          cell.textContent = '';
+          cell.style.cssText = '';
+        });
+      });
+      if (!gs || phase !== 'playing') return;
+      const data = getBossSheet1Rows();
+      data.forEach((rd, ri) => {
+        if (ri >= gridRows.length || !rd.values) return;
+        const cells = gridRows[ri].querySelectorAll('.grid-cell');
+        rd.values.forEach((val, ci) => {
+          if (ci >= cells.length || val == null) return;
+          cells[ci].textContent = val;
+          cells[ci].style.fontWeight = rd.bold ? '700' : '';
+          cells[ci].style.background = rd.bg || '';
+          cells[ci].style.color = rd.color || '';
+          cells[ci].style.paddingLeft = '4px';
+          cells[ci].style.overflow = 'hidden';
+          cells[ci].style.textOverflow = 'ellipsis';
+          cells[ci].style.whiteSpace = 'nowrap';
+          cells[ci].style.fontSize = '11px';
+        });
+      });
+    }
+
+    function clearEscScreen() {
+      document.getElementById('grid-lines').querySelectorAll('.grid-cell').forEach(cell => {
+        cell.textContent = '';
+        cell.style.cssText = '';
+      });
+    }
+
+    function cardToCell(card) {
+      if (!card) return '';
+      if (card.rank === 'BW') return 'joker_BW';
+      if (card.rank === 'COLOR') return 'joker_COLOR';
+      return `${card.suit}_${card.rank}`;
+    }
+
+
+    function getBossSheet1Rows() {
+      const rows = [];
+      if (!gs || phase !== 'playing') {
+        rows.push({ values: ['status', 'waiting_for_game', ''] });
+        return rows;
+      }
+      rows.push({ values: ['key', 'value', 'note'], bold: true, bg: '#d9ead3' });
+      rows.push({ values: ['field_card', cardToCell(gs.fieldCard), ''] });
+      const cur = gs.playerInfo?.find(p => p.id === gs.currentPlayerId);
+      rows.push({ values: ['current_turn', cur?.name || '-', cur?.id === myId ? '(나)' : ''] });
+      rows.push({ values: ['direction', gs.direction === 1 ? 'clockwise' : 'counter_clockwise', ''] });
+      rows.push({ values: ['deck_count', String(gs.deckCount), ''] });
+      const pen = (gs.penaltyActive && gs.penaltyStack > 0) ? gs.penaltyStack : 0;
+      rows.push({
+        values: ['penalty_stack', String(pen), pen > 0 ? 'ACTIVE' : ''],
+        bg: pen > 0 ? '#fce8e6' : undefined,
+        color: pen > 0 ? '#cc0000' : undefined,
+      });
+      if (gs.sevenSuit) rows.push({ values: ['declared_suit', gs.sevenSuit, ''] });
+      rows.push({ values: [] });
+      rows.push({ values: ['player', 'card_count', 'status'], bold: true, bg: '#d9ead3' });
+      gs.playerInfo.forEach(p => {
+        const isTurn = p.id === gs.currentPlayerId;
+        const isMe = p.id === myId;
+        let status = '';
+        if (isTurn) status = 'CURRENT_TURN';
+        else if (p.cardCount === 1) status = p.oneCardDeclared ? 'ONE_CARD' : 'ONE_CARD(!)';
+        rows.push({
+          values: [(isMe ? '[나] ' : '') + p.name, String(p.cardCount), status],
+          bold: isTurn,
+          bg: isTurn ? '#eaf5ea' : undefined,
+        });
+      });
+      return rows;
+    }
+
+    // ── Toast ─────────────────────────────────────────────────────────────────────
+    function showToast(msg, type = '', duration = 2200) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = type;
+      el.style.display = 'flex';
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { el.style.display = 'none'; }, duration);
+    }
+
+    // ── Chat ──────────────────────────────────────────────────────────────────────
+    function addChat(name, msg, isSys) {
+      const line = document.createElement('div');
+      line.className = 'chat-line' + (isSys ? ' sys' : '');
+      if (isSys) { line.textContent = msg; }
+      else {
+        const cn = document.createElement('span'); cn.className = 'cn'; cn.textContent = name + ': ';
+        line.appendChild(cn); line.appendChild(document.createTextNode(msg));
+      }
+      chatLog.appendChild(line);
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    function sendChat() {
+      const msg = chatInput.value.trim(); if (!msg) return;
+      socket.emit('chat', { msg }); chatInput.value = '';
+    }
+    chatInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); sendChat(); } });
+    document.getElementById('chat-send').addEventListener('click', sendChat);
+
+    // ── Buttons ───────────────────────────────────────────────────────────────────
+    btnPlay.addEventListener('click', () => {
+      const cardIds = [...selectedIds];
+      if (!cardIds.length) return;
+      btnPlay.disabled = true;
+      btnDraw.disabled = true;
+      socket.emit('play_cards', { cardIds });
+      selectedIds.clear();
+    });
+
+    btnDraw.addEventListener('click', () => {
+      btnPlay.disabled = true;
+      btnDraw.disabled = true;
+      socket.emit('draw_card');
+    });
+
+    btnSort.addEventListener('click', () => {
+      sortedHand = !sortedHand;
+      btnSort.textContent = sortedHand ? '정렬 해제' : '정렬';
+      renderHand();
+    });
+
+    buildVsCode();
+
+    // ── Keyboard ──────────────────────────────────────────────────────────────────
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        escActive = !escActive;
+        document.getElementById('vscode-screen').classList.toggle('show', escActive);
+        if (escActive) updateVsTerminal();
+        return;
+      }
+      if (chatInput === document.activeElement) return;
+      if (phase === 'playing' && oneCardChallenge) {
+        const k = e.key.toLowerCase();
+        if (/^[a-z0-9]$/.test(k) && k === oneCardChallenge.requiredKey) {
+          e.preventDefault();
+          socket.emit('one_card_key', { key: k });
+        }
+      }
+      if (e.key === 'Enter' && phase === 'login') {
+        document.getElementById('join-btn').click();
+      }
+    });
+
+    // ── Socket events ─────────────────────────────────────────────────────────────
+    socket.on('connect', () => { myId = socket.id; });
+
+    socket.on('join_error', ({ msg }) => {
+      document.getElementById('join-error').textContent = msg;
+    });
+
+    socket.on('lobby_update', ({ players }) => {
+      phase = 'lobby';
+      gs = null; myHand = []; selectedIds.clear();
+      loginOverlay.classList.add('hidden');
+      lobbyOverlay.classList.remove('hidden');
+      resultOverlay.classList.add('hidden');
+
+      const listEl = document.getElementById('lobby-list');
+      listEl.innerHTML = '';
+      players.forEach(p => {
+        const d = document.createElement('div');
+        d.className = 'lp' + (p.isHost ? ' host' : '');
+        d.textContent = p.name; listEl.appendChild(d);
+      });
+      const isHost = players.find(p => p.id === myId)?.isHost;
+      const startBtn = document.getElementById('start-btn');
+      startBtn.disabled = !isHost || players.length < 2;
+      document.getElementById('lobby-hint').textContent =
+        players.length < 2 ? '2명 이상 필요' : (isHost ? '' : '방장 대기 중');
+    });
+
+    socket.on('game_started', () => {
+      phase = 'playing';
+      lobbyOverlay.classList.add('hidden');
+      selectedIds.clear();
+    });
+
+    socket.on('game_update', data => {
+      gs = data;
+      myHand = data.myHand || myHand;
+      oneCardChallenge = data.oneCardChallenge || null;
+      renderAll();
+      if (document.getElementById('main').classList.contains('game-panel-hidden')) renderEscScreen();
+    });
+
+    socket.on('play_error', ({ reason }) => {
+      showToast(reason, 'red');
+      selectedIds.clear();
+      renderHand();
+      updateButtons();
+    });
+
+    socket.on('one_card_challenge', ({ playerName, requiredKey }) => {
+      oneCardChallenge = { playerName, requiredKey };
+      addChat(null, `${playerName} 님이 원카드입니다! [${requiredKey.toUpperCase()}] 키를 눌러주세요.`, true);
+    });
+
+    socket.on('one_card_result', ({ type, targetName, byName }) => {
+      if (type === 'declare') {
+        showToast(`${targetName}: 원카드!`, 'green');
+        addChat(null, `${targetName} 원카드 선언!`, true);
+      } else {
+        showToast(`${byName} -> ${targetName} 신고! +1장`, 'red');
+        addChat(null, `${byName} 님이 ${targetName} 님을 신고했습니다. (+1장)`, true);
+      }
+    });
+
+    socket.on('game_over', ({ winnerName, results }) => {
+      phase = 'ended';
+      const sorted = [...results].sort((a, b) => (a.rank || 999) - (b.rank || 999));
+      const loser = sorted[sorted.length - 1];
+      document.getElementById('result-winner').textContent =
+        winnerName ? `1위: ${winnerName} 🏆  꼴찌: ${loser?.name}` : '게임 종료';
+      const tbody = document.getElementById('result-body');
+      tbody.innerHTML = '';
+      sorted.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${p.rank}위</td><td>${p.name}</td><td>${p.cardCount}장</td>`;
+        tbody.appendChild(tr);
+      });
+      document.getElementById('rematch-status').textContent = '';
+      document.getElementById('rematch-btn').disabled = false;
+      resultOverlay.classList.remove('hidden');
+    });
+
+    socket.on('rematch_status', ({ votes, total }) => {
+      document.getElementById('rematch-status').textContent = `다시하기 투표: ${votes} / ${total}`;
+    });
+
+    socket.on('chat_msg', ({ name, msg, sys }) => { addChat(name, msg, sys || false); });
+
+    socket.on('player_left', ({ name }) => { addChat(null, `${name} 님이 나갔습니다.`, true); });
+
+    // ── Login / Lobby buttons ─────────────────────────────────────────────────────
+    document.getElementById('join-btn').addEventListener('click', () => {
+      const name = document.getElementById('name-input').value.trim();
+      if (!name) return;
+      myName = name;
+      socket.emit('join', { name });
+    });
+
+    document.getElementById('start-btn').addEventListener('click', () => {
+      socket.emit('start_game');
+    });
+
+    document.getElementById('rematch-btn').addEventListener('click', () => {
+      socket.emit('rematch_vote');
+      document.getElementById('rematch-btn').disabled = true;
+    });
+
+    document.querySelectorAll('.suit-pick-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        socket.emit('choose_suit', { suit: btn.dataset.suit });
+      });
+    });
+  </script>
+</body>
+
+</html>
