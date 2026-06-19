@@ -15,6 +15,7 @@ const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']
 const INITIAL_HAND = 7;
 const MAX_PLAYERS = 5;
 const NORMAL_RANKS = ['3', '4', '5', '6', '7', '8', '9', '10'];
+const ONE_CARD_DELAY = 2000;
 
 function penaltyOf(card) {
   if (card.rank === 'A' && card.suit === 'spades') return 5;
@@ -70,6 +71,7 @@ function makeGameState() {
     rankings: [],
     finished: new Set(),
     oneCardChallenge: null,
+    oneCardTimer: null,
   };
 }
 
@@ -351,15 +353,27 @@ function processCards(game, roomId, cards) {
 
 function updateOneCardState(game, roomId, player) {
   if (player.hand.length === 1 && !player.oneCardDeclared) {
-    if (!game.oneCardChallenge || game.oneCardChallenge.playerId !== player.id) {
-      const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-      const key = chars[Math.floor(Math.random() * chars.length)];
-      game.oneCardChallenge = { playerId: player.id, playerName: player.name, requiredKey: key };
-      io.to(roomId).emit('one_card_challenge', { playerName: player.name, requiredKey: key });
+    if (!game.oneCardChallenge && !game.oneCardTimer) {
+      const keyCodes = [
+        ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(k => 'Key' + k),
+        ...'0123456789'.split('').map(k => 'Digit' + k),
+      ];
+      const key = keyCodes[Math.floor(Math.random() * keyCodes.length)];
+      game.oneCardTimer = setTimeout(() => {
+        game.oneCardTimer = null;
+        if (player.hand.length === 1 && !player.oneCardDeclared && game.phase === 'playing') {
+          game.oneCardChallenge = { playerId: player.id, playerName: player.name, requiredKey: key };
+          io.to(roomId).emit('one_card_challenge', { playerName: player.name, requiredKey: key });
+        }
+      }, ONE_CARD_DELAY);
     }
   }
   if (player.hand.length !== 1) {
     player.oneCardDeclared = false;
+    if (game.oneCardTimer) {
+      clearTimeout(game.oneCardTimer);
+      game.oneCardTimer = null;
+    }
   }
 }
 
@@ -415,6 +429,10 @@ function handleLeaveRoom(socket) {
   socketRoom.delete(socket.id);
   delete game.players[socket.id];
   room.rematchVotes.delete(socket.id);
+  if (game.oneCardTimer && game.oneCardChallenge?.playerId === socket.id) {
+    clearTimeout(game.oneCardTimer);
+    game.oneCardTimer = null;
+  }
 
   if (game.finished.has(socket.id)) {
     game.finished.delete(socket.id);
@@ -605,6 +623,7 @@ io.on('connection', socket => {
 
     if (player.hand.length !== 1) player.oneCardDeclared = false;
     if (game.oneCardChallenge?.playerId === socket.id) game.oneCardChallenge = null;
+    if (game.oneCardTimer) { clearTimeout(game.oneCardTimer); game.oneCardTimer = null; }
 
     game.extraTurnActive = false;
     game.extraTurnSuit = null;

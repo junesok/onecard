@@ -2289,7 +2289,9 @@
       const banner = document.getElementById('challenge-banner');
       if (!oneCardChallenge) { banner.classList.remove('show'); return; }
       document.getElementById('challenge-name').textContent = oneCardChallenge.playerName;
-      document.getElementById('challenge-key-box').textContent = oneCardChallenge.requiredKey.toUpperCase();
+      const code = oneCardChallenge.requiredKey;
+      const label = code.startsWith('Key') ? code.slice(3) : code.startsWith('Digit') ? code.slice(5) : code;
+      document.getElementById('challenge-key-box').textContent = label;
       banner.classList.add('show');
     }
 
@@ -2455,10 +2457,9 @@
       }
       if (chatInput === document.activeElement) return;
       if (phase === 'playing' && oneCardChallenge) {
-        const k = e.key.toLowerCase();
-        if (/^[a-z0-9]$/.test(k) && k === oneCardChallenge.requiredKey) {
+        if (e.code === oneCardChallenge.requiredKey) {
           e.preventDefault();
-          socket.emit('one_card_key', { key: k });
+          socket.emit('one_card_key', { key: e.code });
         }
       }
       if (e.key === 'Enter' && phase === 'login') {
@@ -2551,7 +2552,9 @@
 
     socket.on('one_card_challenge', ({ playerName, requiredKey }) => {
       oneCardChallenge = { playerName, requiredKey };
-      addChat(null, `${playerName} 님이 원카드입니다! [${requiredKey.toUpperCase()}] 키를 눌러주세요.`, true);
+      const label = requiredKey.startsWith('Key') ? requiredKey.slice(3) : requiredKey.startsWith('Digit') ? requiredKey.slice(5) : requiredKey;
+      addChat(null, `${playerName} 님이 원카드입니다! [${label}] 키를 눌러주세요.`, true);
+      renderChallengeBanner();
     });
 
     socket.on('one_card_result', ({ type, targetName, byName }) => {
