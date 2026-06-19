@@ -2206,9 +2206,6 @@
       });
 
       // Formula bar context
-      const formulaMap = {
-        true: '=IF(HAND.COUNT>0,"PLAY_CARD()","DRAW_CARD()")',
-      };
       document.getElementById('formula-input').value = gs.currentPlayerId === myId
         ? '=IF(HAND.COUNT>0,"PLAY_CARD()","DRAW_CARD()")'
         : `=WAIT("${cur?.name || ''}")`;
@@ -2590,8 +2587,6 @@
     });
 
     socket.on('chat_msg', ({ name, msg, sys }) => { addChat(name, msg, sys || false); });
-
-    socket.on('player_left', ({ name }) => { addChat(null, `${name} 님이 나갔습니다.`, true); });
 
     // ── Login / Lobby buttons ─────────────────────────────────────────────────────
     document.getElementById('join-btn').addEventListener('click', () => {

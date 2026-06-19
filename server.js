@@ -130,7 +130,6 @@ function reshuffleDeck(game) {
 function advanceTurn(game, extraSkips = 0) {
   const n = game.playerOrder.length;
   const steps = 1 + extraSkips;
-  const fromName = game.players[game.playerOrder[game.currentIndex]]?.name || '?';
   let idx = game.currentIndex;
   let moved = 0;
   while (moved < steps) {
@@ -140,8 +139,6 @@ function advanceTurn(game, extraSkips = 0) {
   game.currentIndex = idx;
   game.hasPlayedThisTurn = false;
   game.pendingSkips = 0;
-  const toName = game.players[game.playerOrder[game.currentIndex]]?.name || '?';
-  console.log(`[TURN] ${fromName} → ${toName}  (dir:${game.direction} steps:${steps})`);
 }
 
 function buildLobbyState(game) {
@@ -716,12 +713,31 @@ io.on('connection', socket => {
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────
-const PORT = 3000;
-server.listen(PORT, '0.0.0.0', () => {
+function getLocalIp() {
   const nets = os.networkInterfaces();
-  let ip = 'localhost';
   for (const iface of Object.values(nets))
     for (const addr of iface)
-      if (addr.family === 'IPv4' && !addr.internal) { ip = addr.address; break; }
-  console.log(`Server running at http://${ip}:${PORT}`);
+      if (addr.family === 'IPv4' && !addr.internal) return addr.address;
+  return 'localhost';
+}
+
+let currentPort = 3000;
+
+function listen(port) {
+  currentPort = port;
+  server.listen(port, '0.0.0.0');
+}
+
+server.on('listening', () => {
+  console.log(`Server running at http://${getLocalIp()}:${currentPort}`);
 });
+
+server.on('error', e => {
+  if (e.code === 'EADDRINUSE') {
+    listen(currentPort + 1);
+  } else {
+    throw e;
+  }
+});
+
+listen(3000);
