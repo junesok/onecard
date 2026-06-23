@@ -72,6 +72,7 @@ function makeGameState() {
     finished: new Set(),
     oneCardChallenge: null,
     oneCardTimer: null,
+    oneCardTimerPlayerId: null,
   };
 }
 
@@ -227,13 +228,16 @@ function canPlayNormal(card, fieldCard, extraTurnActive, extraTurnSuit, sevenSui
     return false;
   }
   if (sevenSuit) {
-    return card.suit === sevenSuit || card.rank === '7';
+    if (card.suit === sevenSuit || card.rank === '7') return true;
+    if (card.rank === 'BW') return suitIsBlack(sevenSuit);
+    if (card.rank === 'COLOR') return !suitIsBlack(sevenSuit);
+    return false;
   }
   if (fieldCard.rank === 'BW') {
-    return card.rank === 'BW' || (card.suit !== null && suitIsBlack(card.suit));
+    return card.rank === 'BW' || card.rank === 'COLOR' || (card.suit !== null && suitIsBlack(card.suit));
   }
   if (fieldCard.rank === 'COLOR') {
-    return card.rank === 'COLOR' || (card.suit !== null && !suitIsBlack(card.suit));
+    return card.rank === 'COLOR' || card.rank === 'BW' || (card.suit !== null && !suitIsBlack(card.suit));
   }
   if (card.rank === 'BW') return suitIsBlack(fieldCard.suit);
   if (card.rank === 'COLOR') return !suitIsBlack(fieldCard.suit);
@@ -359,8 +363,10 @@ function updateOneCardState(game, roomId, player) {
         ...'0123456789'.split('').map(k => 'Digit' + k),
       ];
       const key = keyCodes[Math.floor(Math.random() * keyCodes.length)];
+      game.oneCardTimerPlayerId = player.id;
       game.oneCardTimer = setTimeout(() => {
         game.oneCardTimer = null;
+        game.oneCardTimerPlayerId = null;
         if (player.hand.length === 1 && !player.oneCardDeclared && game.phase === 'playing') {
           game.oneCardChallenge = { playerId: player.id, playerName: player.name, requiredKey: key };
           io.to(roomId).emit('one_card_challenge', { playerName: player.name, requiredKey: key });
@@ -370,9 +376,22 @@ function updateOneCardState(game, roomId, player) {
   }
   if (player.hand.length !== 1) {
     player.oneCardDeclared = false;
-    if (game.oneCardTimer) {
+    if (game.oneCardTimer && game.oneCardTimerPlayerId === player.id) {
       clearTimeout(game.oneCardTimer);
       game.oneCardTimer = null;
+      game.oneCardTimerPlayerId = null;
+    }
+  }
+}
+
+function checkForUnchallengedOneCards(game, roomId) {
+  if (game.oneCardChallenge || game.oneCardTimer) return;
+  for (const id of game.playerOrder) {
+    if (game.finished.has(id)) continue;
+    const p = game.players[id];
+    if (p && p.hand.length === 1 && !p.oneCardDeclared) {
+      updateOneCardState(game, roomId, p);
+      break;
     }
   }
 }
@@ -429,9 +448,10 @@ function handleLeaveRoom(socket) {
   socketRoom.delete(socket.id);
   delete game.players[socket.id];
   room.rematchVotes.delete(socket.id);
-  if (game.oneCardTimer && game.oneCardChallenge?.playerId === socket.id) {
+  if (game.oneCardTimer && game.oneCardTimerPlayerId === socket.id) {
     clearTimeout(game.oneCardTimer);
     game.oneCardTimer = null;
+    game.oneCardTimerPlayerId = null;
   }
 
   if (game.finished.has(socket.id)) {
@@ -593,7 +613,14 @@ io.on('connection', socket => {
     checkFinish(game, roomId);
     if (game.phase === 'playing') {
       if (!game.extraTurnActive && !game.waitingSuitChange) {
-        advanceTurn(game, game.pendingSkips);
+        let skips = game.pendingSkips;
+        if (skips > 0) {
+          const opponents = game.playerOrder.filter(id => !game.finished.has(id) && id !== socket.id).length;
+          if (opponents > 0) {
+            skips = skips % opponents || opponents;
+          }
+        }
+        advanceTurn(game, skips);
       }
       broadcastGameState(game, roomId);
     }
@@ -622,8 +649,16 @@ io.on('connection', socket => {
     }
 
     if (player.hand.length !== 1) player.oneCardDeclared = false;
-    if (game.oneCardChallenge?.playerId === socket.id) game.oneCardChallenge = null;
-    if (game.oneCardTimer) { clearTimeout(game.oneCardTimer); game.oneCardTimer = null; }
+    if (game.oneCardChallenge?.playerId === socket.id) {
+      game.oneCardChallenge = null;
+      checkForUnchallengedOneCards(game, roomId);
+    }
+    if (game.oneCardTimer && game.oneCardTimerPlayerId === socket.id) {
+      clearTimeout(game.oneCardTimer);
+      game.oneCardTimer = null;
+      game.oneCardTimerPlayerId = null;
+      checkForUnchallengedOneCards(game, roomId);
+    }
 
     game.extraTurnActive = false;
     game.extraTurnSuit = null;
@@ -673,6 +708,7 @@ io.on('connection', socket => {
     const target = game.players[playerId];
     if (!target || target.hand.length !== 1) {
       game.oneCardChallenge = null;
+      checkForUnchallengedOneCards(game, roomId);
       broadcastGameState(game, roomId);
       return;
     }
@@ -688,6 +724,7 @@ io.on('connection', socket => {
       target.oneCardDeclared = false;
       io.to(roomId).emit('one_card_result', { type: 'callout', targetId: playerId, targetName: playerName, byName: presser.name });
     }
+    checkForUnchallengedOneCards(game, roomId);
     broadcastGameState(game, roomId);
   });
 

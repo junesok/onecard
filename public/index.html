@@ -1757,7 +1757,7 @@
     let gs = null;           // game state from server
     let myHand = [];         // my current hand
     let selectedIds = new Set();
-    let sortedHand = false;
+    let sortedHand = 0;
     let toastTimer = null;
     let myName = '';
     let escActive = false;
@@ -2003,10 +2003,15 @@
         if (card.rank === 'COLOR') return !suitIsBlack(extraTurnSuit);
         return false;
       }
-      if (sevenSuit) return card.suit === sevenSuit || card.rank === '7';
+      if (sevenSuit) {
+        if (card.suit === sevenSuit || card.rank === '7') return true;
+        if (card.rank === 'BW') return suitIsBlack(sevenSuit);
+        if (card.rank === 'COLOR') return !suitIsBlack(sevenSuit);
+        return false;
+      }
       if (!fieldCard) return true;
-      if (fieldCard.rank === 'BW') return card.rank === 'BW' || (card.suit !== null && suitIsBlack(card.suit));
-      if (fieldCard.rank === 'COLOR') return card.rank === 'COLOR' || (card.suit !== null && !suitIsBlack(card.suit));
+      if (fieldCard.rank === 'BW') return card.rank === 'BW' || card.rank === 'COLOR' || (card.suit !== null && suitIsBlack(card.suit));
+      if (fieldCard.rank === 'COLOR') return card.rank === 'COLOR' || card.rank === 'BW' || (card.suit !== null && !suitIsBlack(card.suit));
       if (card.rank === 'BW') return suitIsBlack(fieldCard.suit);
       if (card.rank === 'COLOR') return !suitIsBlack(fieldCard.suit);
       return card.suit === fieldCard.suit || card.rank === fieldCard.rank;
@@ -2019,12 +2024,19 @@
     }
 
     // ── Sort hand ─────────────────────────────────────────────────────────────────
-    function sortHand(hand) {
+    function sortHand(hand, mode) {
       return [...hand].sort((a, b) => {
         const sa = a.suit === null ? 99 : (SUIT_ORDER[a.suit] ?? 99);
         const sb = b.suit === null ? 99 : (SUIT_ORDER[b.suit] ?? 99);
-        if (sa !== sb) return sa - sb;
-        return (RANK_ORDER[a.rank] ?? 0) - (RANK_ORDER[b.rank] ?? 0);
+        const ra = RANK_ORDER[a.rank] ?? 0;
+        const rb = RANK_ORDER[b.rank] ?? 0;
+        if (mode === 1) {
+          if (sa !== sb) return sa - sb;
+          return ra - rb;
+        } else {
+          if (ra !== rb) return ra - rb;
+          return sa - sb;
+        }
       });
     }
 
@@ -2032,7 +2044,7 @@
     function renderHand() {
       myHandEl.innerHTML = '';
       const isMyTurn = gs && gs.currentPlayerId === myId;
-      const displayHand = sortedHand ? sortHand(myHand) : myHand;
+      const displayHand = sortedHand > 0 ? sortHand(myHand, sortedHand) : myHand;
 
       displayHand.forEach(card => {
         const el = createCardEl(card);
@@ -2436,12 +2448,15 @@
     btnDraw.addEventListener('click', () => {
       btnPlay.disabled = true;
       btnDraw.disabled = true;
+      selectedIds.clear();
+      renderHand();
       socket.emit('draw_card');
     });
 
+    const SORT_LABELS = ['정렬', '무늬순', '숫자순'];
     btnSort.addEventListener('click', () => {
-      sortedHand = !sortedHand;
-      btnSort.textContent = sortedHand ? '정렬 해제' : '정렬';
+      sortedHand = (sortedHand + 1) % 3;
+      btnSort.textContent = SORT_LABELS[sortedHand];
       renderHand();
     });
 
