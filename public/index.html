@@ -1642,12 +1642,17 @@
   <!-- Room list -->
   <div class="overlay hidden" id="room-list-overlay">
     <div class="dialog" style="min-width:380px;max-width:520px;">
-      <h2>방 목록</h2>
+      <h2 style="display:flex;align-items:center;justify-content:space-between;">
+        <span>방 목록</span>
+        <span id="room-list-username" style="font-size:11px;color:#9d9d9d;font-weight:400;"></span>
+      </h2>
       <div id="room-list-items"></div>
       <div id="room-list-error"></div>
       <div class="dialog-row">
         <button id="create-room-btn">방 만들기</button>
         <button class="btn-ghost" id="refresh-rooms-btn">새로고침</button>
+        <button class="btn-ghost" id="leaderboard-btn" style="margin-left:auto;">리더보드</button>
+        <button class="btn-ghost" id="profile-btn">프로필</button>
       </div>
     </div>
   </div>
@@ -1682,13 +1687,66 @@
     </div>
   </div>
 
-  <!-- Login -->
+  <!-- Login / Register -->
   <div class="overlay" id="login-overlay">
     <div class="dialog">
-      <h2>원카드 - 닉네임 입력</h2>
-      <input id="name-input" type="text" placeholder="닉네임 (최대 12자)" maxlength="12" autofocus>
-      <button id="join-btn">입장</button>
+      <h2 id="auth-title">원카드 — 로그인</h2>
+      <div style="display:flex;gap:6px;margin-bottom:14px;">
+        <button id="tab-login-btn" style="flex:1;padding:5px 0;background:#2d7d5c;color:#4ec9b0;border:none;cursor:pointer;font-size:11px;font-family:inherit;">로그인</button>
+        <button id="tab-register-btn" style="flex:1;padding:5px 0;background:#1e1e1e;color:#9d9d9d;border:1px solid #3c3c3c;cursor:pointer;font-size:11px;font-family:inherit;">회원가입</button>
+      </div>
+      <div id="form-login">
+        <input id="login-id-input" type="text" placeholder="아이디" autocomplete="username">
+        <input id="login-pw-input" type="password" placeholder="비밀번호" autocomplete="current-password">
+        <button id="join-btn">로그인</button>
+      </div>
+      <div id="form-register" style="display:none;">
+        <input id="reg-id-input" type="text" placeholder="아이디 (3자 이상)" autocomplete="username">
+        <input id="reg-nick-input" type="text" maxlength="12" placeholder="닉네임 (최대 12자)">
+        <input id="reg-pw-input" type="password" placeholder="비밀번호 (4자 이상)" autocomplete="new-password">
+        <button id="reg-btn">회원가입</button>
+      </div>
       <div id="join-error"></div>
+    </div>
+  </div>
+
+  <!-- Profile -->
+  <div class="overlay hidden" id="profile-overlay">
+    <div class="dialog">
+      <h2>프로필 수정</h2>
+      <p>닉네임 변경</p>
+      <input id="profile-nick-input" type="text" maxlength="12" placeholder="새 닉네임">
+      <button id="profile-nick-btn">닉네임 변경</button>
+      <p style="margin-top:16px;">비밀번호 변경</p>
+      <input id="profile-pw-cur" type="password" placeholder="현재 비밀번호">
+      <input id="profile-pw-new" type="password" placeholder="새 비밀번호 (4자 이상)">
+      <button id="profile-pw-btn">비밀번호 변경</button>
+      <div id="profile-msg" style="margin-top:8px;font-size:11px;min-height:14px;"></div>
+      <div class="dialog-row" style="margin-top:10px;">
+        <button class="btn-ghost" id="profile-close-btn">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaderboard -->
+  <div class="overlay hidden" id="leaderboard-overlay">
+    <div class="dialog" style="min-width:400px;">
+      <h2>리더보드</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;">
+        <thead>
+          <tr>
+            <th style="padding:4px 6px;background:#1e1e1e;border:1px solid #3c3c3c;color:#9d9d9d;text-align:left;">#</th>
+            <th style="padding:4px 6px;background:#1e1e1e;border:1px solid #3c3c3c;color:#9d9d9d;text-align:left;">닉네임</th>
+            <th style="padding:4px 6px;background:#1e1e1e;border:1px solid #3c3c3c;color:#9d9d9d;text-align:right;">점수</th>
+            <th style="padding:4px 6px;background:#1e1e1e;border:1px solid #3c3c3c;color:#9d9d9d;text-align:right;">1위</th>
+            <th style="padding:4px 6px;background:#1e1e1e;border:1px solid #3c3c3c;color:#9d9d9d;text-align:right;">참여</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboard-body"></tbody>
+      </table>
+      <div class="dialog-row">
+        <button class="btn-ghost" id="leaderboard-close-btn">닫기</button>
+      </div>
     </div>
   </div>
 
@@ -1753,6 +1811,7 @@
     // ── State ──────────────────────────────────────────────────────────────────────
     const socket = io();
     let myId = null;
+    let myUserId = null;
     let phase = 'login';
     let gs = null;           // game state from server
     let myHand = [];         // my current hand
@@ -2477,9 +2536,6 @@
           socket.emit('one_card_key', { key: e.code });
         }
       }
-      if (e.key === 'Enter' && phase === 'login') {
-        document.getElementById('join-btn').click();
-      }
     });
 
     // ── Socket events ─────────────────────────────────────────────────────────────
@@ -2491,6 +2547,11 @@
       loginOverlay.classList.add('hidden');
       document.getElementById('room-list-overlay').classList.remove('hidden');
       document.getElementById('room-list-error').textContent = '';
+      document.getElementById('room-list-username').textContent = `[${name}]`;
+    });
+
+    socket.on('auth_error', ({ msg }) => {
+      document.getElementById('join-error').textContent = msg;
     });
 
     socket.on('room_list', ({ rooms: roomArr }) => {
@@ -2607,12 +2668,71 @@
 
     socket.on('chat_msg', ({ name, msg, sys }) => { addChat(name, msg, sys || false); });
 
-    // ── Login / Lobby buttons ─────────────────────────────────────────────────────
-    document.getElementById('join-btn').addEventListener('click', () => {
-      const name = document.getElementById('name-input').value.trim();
-      if (!name) return;
-      socket.emit('join', { name });
+    // ── Auth tab toggle ───────────────────────────────────────────────────────────
+    document.getElementById('tab-login-btn').addEventListener('click', () => {
+      document.getElementById('form-login').style.display = 'block';
+      document.getElementById('form-register').style.display = 'none';
+      document.getElementById('auth-title').textContent = '원카드 — 로그인';
+      document.getElementById('tab-login-btn').style.background = '#2d7d5c';
+      document.getElementById('tab-login-btn').style.color = '#4ec9b0';
+      document.getElementById('tab-register-btn').style.background = '#1e1e1e';
+      document.getElementById('tab-register-btn').style.color = '#9d9d9d';
+      document.getElementById('join-error').textContent = '';
     });
+    document.getElementById('tab-register-btn').addEventListener('click', () => {
+      document.getElementById('form-login').style.display = 'none';
+      document.getElementById('form-register').style.display = 'block';
+      document.getElementById('auth-title').textContent = '원카드 — 회원가입';
+      document.getElementById('tab-register-btn').style.background = '#2d7d5c';
+      document.getElementById('tab-register-btn').style.color = '#4ec9b0';
+      document.getElementById('tab-login-btn').style.background = '#1e1e1e';
+      document.getElementById('tab-login-btn').style.color = '#9d9d9d';
+      document.getElementById('join-error').textContent = '';
+    });
+
+    // ── Login / Lobby buttons ─────────────────────────────────────────────────────
+    async function doLogin() {
+      const loginId = document.getElementById('login-id-input').value.trim();
+      const password = document.getElementById('login-pw-input').value;
+      const errEl = document.getElementById('join-error');
+      if (!loginId || !password) { errEl.textContent = '아이디와 비밀번호를 입력해주세요.'; return; }
+      errEl.textContent = '';
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loginId, password }),
+      });
+      const data = await res.json();
+      if (!data.ok) { errEl.textContent = data.error; return; }
+      myUserId = data.userId;
+      myName = data.nickname;
+      socket.emit('join', { userId: data.userId });
+    }
+
+    document.getElementById('join-btn').addEventListener('click', doLogin);
+    document.getElementById('login-pw-input').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+    document.getElementById('login-id-input').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+    async function doRegister() {
+      const loginId = document.getElementById('reg-id-input').value.trim();
+      const nickname = document.getElementById('reg-nick-input').value.trim();
+      const password = document.getElementById('reg-pw-input').value;
+      const errEl = document.getElementById('join-error');
+      errEl.textContent = '';
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loginId, nickname, password }),
+      });
+      const data = await res.json();
+      if (!data.ok) { errEl.textContent = data.error; return; }
+      myUserId = data.userId;
+      myName = data.nickname;
+      socket.emit('join', { userId: data.userId });
+    }
+
+    document.getElementById('reg-btn').addEventListener('click', doRegister);
+    document.getElementById('reg-pw-input').addEventListener('keydown', e => { if (e.key === 'Enter') doRegister(); });
 
     document.getElementById('create-room-btn').addEventListener('click', () => {
       document.getElementById('room-name-input').value = `${myName}의 방`;
@@ -2680,6 +2800,81 @@
     document.getElementById('rematch-btn').addEventListener('click', () => {
       socket.emit('rematch_vote');
       document.getElementById('rematch-btn').disabled = true;
+    });
+
+    // ── Profile ───────────────────────────────────────────────────────────────────
+    socket.on('profile_ok', ({ nickname }) => {
+      const msgEl = document.getElementById('profile-msg');
+      msgEl.style.color = '#4ec9b0';
+      if (nickname) {
+        myName = nickname;
+        document.getElementById('room-list-username').textContent = `[${nickname}]`;
+        msgEl.textContent = `닉네임이 "${nickname}"으로 변경되었습니다.`;
+      } else {
+        msgEl.textContent = '비밀번호가 변경되었습니다.';
+      }
+    });
+
+    socket.on('profile_error', ({ msg }) => {
+      const msgEl = document.getElementById('profile-msg');
+      msgEl.style.color = '#f48771';
+      msgEl.textContent = msg;
+    });
+
+    document.getElementById('profile-btn').addEventListener('click', () => {
+      document.getElementById('profile-nick-input').value = myName;
+      document.getElementById('profile-pw-cur').value = '';
+      document.getElementById('profile-pw-new').value = '';
+      document.getElementById('profile-msg').textContent = '';
+      document.getElementById('profile-overlay').classList.remove('hidden');
+    });
+
+    document.getElementById('profile-close-btn').addEventListener('click', () => {
+      document.getElementById('profile-overlay').classList.add('hidden');
+    });
+
+    document.getElementById('profile-nick-btn').addEventListener('click', () => {
+      const nickname = document.getElementById('profile-nick-input').value.trim();
+      if (!nickname) return;
+      document.getElementById('profile-msg').textContent = '';
+      socket.emit('update_nickname', { nickname });
+    });
+
+    document.getElementById('profile-pw-btn').addEventListener('click', () => {
+      const currentPassword = document.getElementById('profile-pw-cur').value;
+      const newPassword = document.getElementById('profile-pw-new').value;
+      document.getElementById('profile-msg').textContent = '';
+      socket.emit('update_password', { currentPassword, newPassword });
+    });
+
+    // ── Leaderboard ───────────────────────────────────────────────────────────────
+    async function openLeaderboard() {
+      const res = await fetch('/api/leaderboard');
+      const rows = await res.json();
+      const tbody = document.getElementById('leaderboard-body');
+      tbody.innerHTML = '';
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="padding:12px;text-align:center;color:#555;border:1px solid #3c3c3c;">기록 없음</td></tr>';
+      } else {
+        rows.forEach((r, i) => {
+          const isMe = r.nickname === myName;
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td style="padding:4px 6px;border:1px solid #3c3c3c;color:${i < 3 ? '#ffd60a' : '#9d9d9d'};">${i + 1}</td>
+            <td style="padding:4px 6px;border:1px solid #3c3c3c;color:${isMe ? '#4ec9b0' : '#d4d4d4'};font-weight:${isMe ? '700' : '400'};">${r.nickname}${isMe ? ' (나)' : ''}</td>
+            <td style="padding:4px 6px;border:1px solid #3c3c3c;color:#d4d4d4;text-align:right;">${r.total_points}pt</td>
+            <td style="padding:4px 6px;border:1px solid #3c3c3c;color:#9d9d9d;text-align:right;">${r.wins}회</td>
+            <td style="padding:4px 6px;border:1px solid #3c3c3c;color:#9d9d9d;text-align:right;">${r.games}회</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+      document.getElementById('leaderboard-overlay').classList.remove('hidden');
+    }
+
+    document.getElementById('leaderboard-btn').addEventListener('click', openLeaderboard);
+    document.getElementById('leaderboard-close-btn').addEventListener('click', () => {
+      document.getElementById('leaderboard-overlay').classList.add('hidden');
     });
 
     document.querySelectorAll('.suit-pick-btn').forEach(btn => {

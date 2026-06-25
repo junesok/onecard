@@ -3,11 +3,28 @@ const http = require('http');
 const { Server } = require('socket.io');
 const os = require('os');
 const path = require('path');
+const db = require('./db');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ─── Auth REST API ────────────────────────────────────────────────────────────
+app.post('/api/register', (req, res) => {
+  const { loginId, nickname, password } = req.body || {};
+  res.json(db.register(loginId, nickname, password));
+});
+
+app.post('/api/login', (req, res) => {
+  const { loginId, password } = req.body || {};
+  res.json(db.login(loginId, password));
+});
+
+app.get('/api/leaderboard', (_req, res) => {
+  res.json(db.getLeaderboard());
+});
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const SUITS = ['spades', 'hearts', 'diamonds', 'clubs'];
@@ -77,9 +94,10 @@ function makeGameState() {
 }
 
 // ─── Room Registry ────────────────────────────────────────────────────────────
-const rooms = new Map();      // roomId → { id, name, password, game, rematchVotes }
-const socketRoom = new Map(); // socketId → roomId
-const socketName = new Map(); // socketId → name
+const rooms = new Map();        // roomId → { id, name, password, game, rematchVotes }
+const socketRoom = new Map();   // socketId → roomId
+const socketName = new Map();   // socketId → name
+const socketUserId = new Map(); // socketId → db user id
 
 function generateRoomId() {
   let id;
@@ -419,6 +437,11 @@ function checkFinish(game, roomId) {
       finalRankings.push({ id, name: game.players[id].name, rank: finalRankings.length + 1 });
     });
     const winner = finalRankings[0];
+    const totalPlayers = game.playerOrder.length;
+    finalRankings.forEach(({ id, rank }) => {
+      const uid = socketUserId.get(id);
+      if (uid) db.saveResult(uid, rank, totalPlayers);
+    });
     io.to(roomId).emit('game_over', {
       winnerId: winner.id,
       winnerName: winner.name,
@@ -521,11 +544,35 @@ function handleLeaveRoom(socket) {
 // ─── Socket Handlers ──────────────────────────────────────────────────────────
 io.on('connection', socket => {
 
-  socket.on('join', ({ name }) => {
-    const cleanName = (name || '').trim().slice(0, 12) || '익명';
-    socketName.set(socket.id, cleanName);
-    socket.emit('join_ok', { name: cleanName });
+  socket.on('join', ({ userId }) => {
+    const user = db.getUserById(userId);
+    if (!user) { socket.emit('auth_error', { msg: '인증 정보가 올바르지 않습니다.' }); return; }
+    socketUserId.set(socket.id, user.id);
+    socketName.set(socket.id, user.nickname);
+    socket.emit('join_ok', { name: user.nickname });
     socket.emit('room_list', { rooms: getRoomList() });
+  });
+
+  socket.on('update_nickname', ({ nickname }) => {
+    const uid = socketUserId.get(socket.id);
+    if (!uid) return;
+    const result = db.updateNickname(uid, nickname);
+    if (!result.ok) { socket.emit('profile_error', { msg: result.error }); return; }
+    socketName.set(socket.id, result.nickname);
+    const roomId = socketRoom.get(socket.id);
+    if (roomId) {
+      const room = rooms.get(roomId);
+      if (room && room.game.players[socket.id]) room.game.players[socket.id].name = result.nickname;
+    }
+    socket.emit('profile_ok', { nickname: result.nickname });
+  });
+
+  socket.on('update_password', ({ currentPassword, newPassword }) => {
+    const uid = socketUserId.get(socket.id);
+    if (!uid) return;
+    const result = db.updatePassword(uid, currentPassword, newPassword);
+    if (!result.ok) { socket.emit('profile_error', { msg: result.error }); return; }
+    socket.emit('profile_ok', {});
   });
 
   socket.on('get_rooms', () => {
@@ -765,6 +812,7 @@ io.on('connection', socket => {
   socket.on('disconnect', () => {
     handleLeaveRoom(socket);
     socketName.delete(socket.id);
+    socketUserId.delete(socket.id);
   });
 });
 
