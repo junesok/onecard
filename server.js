@@ -517,6 +517,11 @@ function handleLeaveRoom(socket) {
       finalRankings.push({ id, name: game.players[id].name, rank: finalRankings.length + 1 });
     });
     const winner = finalRankings[0];
+    const totalPlayers = finalRankings.length;
+    finalRankings.forEach(({ id, rank }) => {
+      const uid = socketUserId.get(id);
+      if (uid) db.saveResult(uid, rank, totalPlayers);
+    });
     io.to(roomId).emit('game_over', {
       winnerId: winner?.id,
       winnerName: winner?.name,
