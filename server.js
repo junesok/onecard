@@ -23,7 +23,8 @@ app.post('/api/login', (req, res) => {
 });
 
 app.get('/api/leaderboard', (_req, res) => {
-  res.json(db.getLeaderboard());
+  const { weekStart, rows } = db.getLeaderboard();
+  res.json({ weekStart, rows });
 });
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -431,28 +432,37 @@ function checkFinish(game, roomId) {
 
   const activePlayers = game.playerOrder.filter(id => !game.finished.has(id));
   if (activePlayers.length <= 1) {
-    game.phase = 'ended';
     const finalRankings = [...game.rankings];
     activePlayers.forEach(id => {
       finalRankings.push({ id, name: game.players[id].name, rank: finalRankings.length + 1 });
     });
     const winner = finalRankings[0];
     const totalPlayers = game.playerOrder.length;
+
+    // 마지막 카드 낸 상태를 먼저 보여준 뒤 game_over 발송
+    game.phase = 'ending';
+    broadcastGameState(game, roomId);
+
     finalRankings.forEach(({ id, rank }) => {
       const uid = socketUserId.get(id);
       if (uid) db.saveResult(uid, rank, totalPlayers);
     });
-    io.to(roomId).emit('game_over', {
-      winnerId: winner.id,
-      winnerName: winner.name,
-      rankings: finalRankings,
-      results: game.playerOrder.map(id => {
-        const pl = game.players[id];
-        const r = finalRankings.find(fr => fr.id === id);
-        return { id, name: pl.name, cardCount: pl.hand.length, rank: r?.rank || game.playerOrder.length, won: id === winner.id };
-      }),
-    });
-    broadcastRoomList();
+
+    setTimeout(() => {
+      if (!rooms.has(roomId)) return;
+      game.phase = 'ended';
+      io.to(roomId).emit('game_over', {
+        winnerId: winner.id,
+        winnerName: winner.name,
+        rankings: finalRankings,
+        results: game.playerOrder.map(id => {
+          const pl = game.players[id];
+          const r = finalRankings.find(fr => fr.id === id);
+          return { id, name: pl.name, cardCount: pl.hand.length, rank: r?.rank || game.playerOrder.length, won: id === winner.id };
+        }),
+      });
+      broadcastRoomList();
+    }, 2500);
   }
 }
 

@@ -1572,6 +1572,7 @@
     <div id="right-panel">
       <div id="hud-panel">
         <div class="hud-title">게임 정보</div>
+        <div class="hud-row"><span>플레이 시간</span><span class="hud-val" id="hud-timer">-</span></div>
         <div class="hud-row"><span>현재 턴</span><span class="hud-val" id="hud-turn">-</span></div>
         <div class="hud-row"><span>진행 방향</span><span class="hud-val" id="hud-dir">-</span></div>
         <div class="hud-row"><span>덱</span><span class="hud-val" id="hud-deck">-</span></div>
@@ -1730,16 +1731,20 @@
 
   <!-- Leaderboard -->
   <div class="overlay hidden" id="leaderboard-overlay">
-    <div class="dialog" style="min-width:400px;">
-      <h2>리더보드</h2>
+    <div class="dialog" style="min-width:460px;">
+      <h2 style="display:flex;align-items:baseline;justify-content:space-between;">
+        <span>리더보드</span>
+        <span id="leaderboard-week" style="font-size:10px;color:#9d9d9d;font-weight:400;"></span>
+      </h2>
       <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;">
         <thead>
           <tr>
             <th style="padding:4px 6px;background:#1e1e1e;border:1px solid #3c3c3c;color:#9d9d9d;text-align:left;">#</th>
             <th style="padding:4px 6px;background:#1e1e1e;border:1px solid #3c3c3c;color:#9d9d9d;text-align:left;">닉네임</th>
-            <th style="padding:4px 6px;background:#1e1e1e;border:1px solid #3c3c3c;color:#9d9d9d;text-align:right;">점수</th>
+            <th style="padding:4px 6px;background:#1e1e1e;border:1px solid #3c3c3c;color:#4ec9b0;text-align:right;">주간 점수</th>
             <th style="padding:4px 6px;background:#1e1e1e;border:1px solid #3c3c3c;color:#9d9d9d;text-align:right;">1위</th>
             <th style="padding:4px 6px;background:#1e1e1e;border:1px solid #3c3c3c;color:#9d9d9d;text-align:right;">참여</th>
+            <th style="padding:4px 6px;background:#1e1e1e;border:1px solid #3c3c3c;color:#9d9d9d;text-align:right;">누적</th>
           </tr>
         </thead>
         <tbody id="leaderboard-body"></tbody>
@@ -1818,6 +1823,8 @@
     let selectedIds = new Set();
     let sortedHand = 0;
     let toastTimer = null;
+    let gameStartTime = null;
+    let gameTimerInterval = null;
     let myName = '';
     let escActive = false;
     let oneCardChallenge = null;
@@ -2241,7 +2248,7 @@
       if (gs.sevenSuit) {
         sevenRow.style.display = 'flex';
         sevenVal.textContent = SUIT_SYMBOL[gs.sevenSuit] + ' ' + { spades: '스페이드', hearts: '하트', diamonds: '다이아', clubs: '클로버' }[gs.sevenSuit];
-        sevenVal.style.color = (gs.sevenSuit === 'hearts' || gs.sevenSuit === 'diamonds') ? '#cc0000' : '#111';
+        sevenVal.style.color = (gs.sevenSuit === 'hearts' || gs.sevenSuit === 'diamonds') ? '#cc0000' : '#d4d4d4';
       } else {
         sevenRow.style.display = 'none';
       }
@@ -2464,6 +2471,27 @@
       return rows;
     }
 
+    // ── Game Timer ────────────────────────────────────────────────────────────────
+    function startGameTimer() {
+      gameStartTime = Date.now();
+      clearInterval(gameTimerInterval);
+      gameTimerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - gameStartTime) / 1000);
+        const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+        const s = String(elapsed % 60).padStart(2, '0');
+        const el = document.getElementById('hud-timer');
+        if (el) el.textContent = `${m}:${s}`;
+      }, 1000);
+    }
+
+    function stopGameTimer() {
+      clearInterval(gameTimerInterval);
+      gameTimerInterval = null;
+      gameStartTime = null;
+      const el = document.getElementById('hud-timer');
+      if (el) el.textContent = '-';
+    }
+
     // ── Toast ─────────────────────────────────────────────────────────────────────
     function showToast(msg, type = '', duration = 2200) {
       const el = document.getElementById('toast');
@@ -2578,6 +2606,7 @@
     socket.on('left_room', () => {
       phase = 'room-list';
       gs = null; myHand = []; selectedIds.clear(); oneCardChallenge = null;
+      stopGameTimer();
       lobbyOverlay.classList.add('hidden');
       resultOverlay.classList.add('hidden');
       document.getElementById('room-list-overlay').classList.remove('hidden');
@@ -2609,6 +2638,7 @@
       phase = 'playing';
       lobbyOverlay.classList.add('hidden');
       selectedIds.clear();
+      startGameTimer();
     });
 
     socket.on('game_update', data => {
@@ -2645,6 +2675,7 @@
 
     socket.on('game_over', ({ winnerName, results }) => {
       phase = 'ended';
+      stopGameTimer();
       const sorted = [...results].sort((a, b) => (a.rank || 999) - (b.rank || 999));
       const loser = sorted[sorted.length - 1];
       document.getElementById('result-winner').textContent =
@@ -2850,11 +2881,19 @@
     // ── Leaderboard ───────────────────────────────────────────────────────────────
     async function openLeaderboard() {
       const res = await fetch('/api/leaderboard');
-      const rows = await res.json();
+      const { weekStart, rows } = await res.json();
       const tbody = document.getElementById('leaderboard-body');
       tbody.innerHTML = '';
+
+      // 주간 시작일 표시
+      const weekEl = document.getElementById('leaderboard-week');
+      if (weekStart) {
+        const d = new Date(weekStart);
+        weekEl.textContent = `이번 주 (${d.getMonth()+1}/${d.getDate()} 월요일 기준)`;
+      }
+
       if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="5" style="padding:12px;text-align:center;color:#555;border:1px solid #3c3c3c;">기록 없음</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="padding:12px;text-align:center;color:#555;border:1px solid #3c3c3c;">기록 없음</td></tr>';
       } else {
         rows.forEach((r, i) => {
           const isMe = r.nickname === myName;
@@ -2862,9 +2901,10 @@
           tr.innerHTML = `
             <td style="padding:4px 6px;border:1px solid #3c3c3c;color:${i < 3 ? '#ffd60a' : '#9d9d9d'};">${i + 1}</td>
             <td style="padding:4px 6px;border:1px solid #3c3c3c;color:${isMe ? '#4ec9b0' : '#d4d4d4'};font-weight:${isMe ? '700' : '400'};">${r.nickname}${isMe ? ' (나)' : ''}</td>
-            <td style="padding:4px 6px;border:1px solid #3c3c3c;color:#d4d4d4;text-align:right;">${r.total_points}pt</td>
-            <td style="padding:4px 6px;border:1px solid #3c3c3c;color:#9d9d9d;text-align:right;">${r.wins}회</td>
-            <td style="padding:4px 6px;border:1px solid #3c3c3c;color:#9d9d9d;text-align:right;">${r.games}회</td>
+            <td style="padding:4px 6px;border:1px solid #3c3c3c;color:#4ec9b0;text-align:right;font-weight:600;">${r.week_points}pt</td>
+            <td style="padding:4px 6px;border:1px solid #3c3c3c;color:#9d9d9d;text-align:right;">${r.week_wins}회</td>
+            <td style="padding:4px 6px;border:1px solid #3c3c3c;color:#9d9d9d;text-align:right;">${r.week_games}회</td>
+            <td style="padding:4px 6px;border:1px solid #3c3c3c;color:#555;text-align:right;">${r.total_points}pt</td>
           `;
           tbody.appendChild(tr);
         });

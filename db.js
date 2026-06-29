@@ -19,10 +19,23 @@ db.exec(`
     rank          INTEGER NOT NULL,
     total_players INTEGER NOT NULL,
     points        INTEGER NOT NULL,
+    week_start    TEXT,
     played_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
 `);
+
+// 기존 DB에 week_start 컬럼이 없을 경우 마이그레이션
+try { db.exec('ALTER TABLE game_results ADD COLUMN week_start TEXT'); } catch (_) {}
+
+function getWeekStart() {
+  const now = new Date();
+  const day = now.getDay(); // 0=일, 1=월 ...
+  const diff = day === 0 ? -6 : 1 - day; // 이번 주 월요일까지의 차이
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diff);
+  return monday.toISOString().slice(0, 10); // YYYY-MM-DD
+}
 
 const stmts = {
   findByLoginId:  db.prepare('SELECT * FROM users WHERE login_id = ?'),
@@ -30,19 +43,24 @@ const stmts = {
   insert:         db.prepare('INSERT INTO users (login_id, nickname, password_hash) VALUES (?, ?, ?)'),
   updateNickname: db.prepare('UPDATE users SET nickname = ? WHERE id = ?'),
   updatePassword: db.prepare('UPDATE users SET password_hash = ? WHERE id = ?'),
-  insertResult:   db.prepare('INSERT INTO game_results (user_id, rank, total_players, points) VALUES (?, ?, ?, ?)'),
-  leaderboard:    db.prepare(`
+  insertResult:   db.prepare('INSERT INTO game_results (user_id, rank, total_players, points, week_start) VALUES (?, ?, ?, ?, ?)'),
+};
+
+function getLeaderboardStmt(weekStart) {
+  return db.prepare(`
     SELECT u.nickname,
-           COALESCE(SUM(r.points), 0)                      AS total_points,
-           COUNT(CASE WHEN r.rank = 1 THEN 1 END)           AS wins,
-           COUNT(*)                                          AS games
+           COALESCE(SUM(CASE WHEN r.week_start = ? THEN r.points ELSE 0 END), 0) AS week_points,
+           COUNT(CASE WHEN r.week_start = ? AND r.rank = 1 THEN 1 END)            AS week_wins,
+           COUNT(CASE WHEN r.week_start = ? THEN 1 END)                            AS week_games,
+           COALESCE(SUM(r.points), 0)                                               AS total_points
     FROM users u
     JOIN game_results r ON u.id = r.user_id
     GROUP BY u.id
-    ORDER BY total_points DESC, wins DESC
+    HAVING week_games > 0 OR total_points > 0
+    ORDER BY week_points DESC, week_wins DESC
     LIMIT 50
-  `),
-};
+  `);
+}
 
 function register(loginId, nickname, password) {
   if (!loginId || loginId.length < 3) return { ok: false, error: '아이디는 3자 이상이어야 합니다.' };
@@ -87,11 +105,12 @@ function updatePassword(userId, currentPassword, newPassword) {
 
 function saveResult(userId, rank, totalPlayers) {
   const points = Math.max(0, totalPlayers - rank);
-  stmts.insertResult.run(userId, rank, totalPlayers, points);
+  stmts.insertResult.run(userId, rank, totalPlayers, points, getWeekStart());
 }
 
 function getLeaderboard() {
-  return stmts.leaderboard.all();
+  const weekStart = getWeekStart();
+  return { weekStart, rows: getLeaderboardStmt(weekStart).all(weekStart, weekStart, weekStart) };
 }
 
 module.exports = { register, login, getUserById, updateNickname, updatePassword, saveResult, getLeaderboard };
