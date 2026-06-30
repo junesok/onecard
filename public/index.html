@@ -2647,6 +2647,7 @@
       oneCardChallenge = data.oneCardChallenge || null;
       renderAll();
       if (document.getElementById('main').classList.contains('game-panel-hidden')) renderEscScreen();
+      if (escActive) updateVsTerminal();
     });
 
     socket.on('play_error', ({ reason }) => {
