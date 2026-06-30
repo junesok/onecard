@@ -1582,6 +1582,7 @@
         <div class="hud-row" id="hud-seven-row" style="display:none;">
           <span>선언 무늬</span><span class="hud-val" id="hud-seven-val">-</span>
         </div>
+        <button id="ingame-leaderboard-btn" style="margin-top:8px;width:100%;padding:4px 0;background:#1e1e1e;border:1px solid #3c3c3c;color:#9d9d9d;cursor:pointer;font-size:10px;font-family:inherit;letter-spacing:0.05em;" onmouseover="this.style.color='#d4d4d4'" onmouseout="this.style.color='#9d9d9d'">리더보드</button>
       </div>
       <div id="player-list">
         <div class="pl-title">플레이어</div>
@@ -2914,6 +2915,7 @@
     }
 
     document.getElementById('leaderboard-btn').addEventListener('click', openLeaderboard);
+    document.getElementById('ingame-leaderboard-btn').addEventListener('click', openLeaderboard);
     document.getElementById('leaderboard-close-btn').addEventListener('click', () => {
       document.getElementById('leaderboard-overlay').classList.add('hidden');
     });
