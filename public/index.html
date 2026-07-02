@@ -1816,6 +1816,11 @@
 
     // ── State ──────────────────────────────────────────────────────────────────────
     const socket = io();
+
+    function warnBeforeLeave(e) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
     let myId = null;
     let myUserId = null;
     let phase = 'login';
@@ -2589,6 +2594,7 @@
 
     socket.on('room_joined', () => {
       phase = 'lobby';
+      window.addEventListener('beforeunload', warnBeforeLeave);
       document.getElementById('room-list-overlay').classList.add('hidden');
       document.getElementById('create-room-overlay').classList.add('hidden');
       document.getElementById('password-overlay').classList.add('hidden');
@@ -2606,6 +2612,7 @@
 
     socket.on('left_room', () => {
       phase = 'room-list';
+      window.removeEventListener('beforeunload', warnBeforeLeave);
       gs = null; myHand = []; selectedIds.clear(); oneCardChallenge = null;
       stopGameTimer();
       lobbyOverlay.classList.add('hidden');
@@ -2677,6 +2684,7 @@
 
     socket.on('game_over', ({ winnerName, results }) => {
       phase = 'ended';
+      window.removeEventListener('beforeunload', warnBeforeLeave);
       stopGameTimer();
       const sorted = [...results].sort((a, b) => (a.rank || 999) - (b.rank || 999));
       const loser = sorted[sorted.length - 1];
