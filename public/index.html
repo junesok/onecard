@@ -2606,6 +2606,7 @@
 
     socket.on('room_joined', () => {
       phase = 'lobby';
+      chatLog.innerHTML = '';
       window.addEventListener('beforeunload', warnBeforeLeave);
       document.getElementById('room-list-overlay').classList.add('hidden');
       document.getElementById('create-room-overlay').classList.add('hidden');
