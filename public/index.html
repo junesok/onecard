@@ -2575,6 +2575,18 @@
     // ── Socket events ─────────────────────────────────────────────────────────────
     socket.on('connect', () => { myId = socket.id; });
 
+    socket.on('disconnect', () => {
+      if (phase === 'login' || phase === 'room-list') return;
+      window.removeEventListener('beforeunload', warnBeforeLeave);
+      gs = null; myHand = []; selectedIds.clear(); oneCardChallenge = null;
+      stopGameTimer();
+      lobbyOverlay.classList.add('hidden');
+      resultOverlay.classList.add('hidden');
+      document.getElementById('room-list-overlay').classList.remove('hidden');
+      phase = 'room-list';
+      showToast('연결이 끊겼습니다. 메인으로 돌아갑니다.', 'red', 3000);
+    });
+
     socket.on('join_ok', ({ name }) => {
       myName = name;
       phase = 'room-list';
